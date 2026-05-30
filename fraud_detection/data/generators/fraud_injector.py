@@ -124,7 +124,7 @@ class FraudInjector:
         n = max(1, int(len(lfb1) * self.fraud_rate))
         sample = lfb1.sample(n=n, random_state=self.seed + 2)
         for idx in sample.index:
-            pay_date = self.tables["BSAK"]["AUGDT"].dropna().sample(1).values[0]
+            pay_date = pd.Timestamp(self.tables["BSAK"]["AUGDT"].dropna().sample(1).values[0])
             self.tables["LFB1"].at[idx, "BKDAT"] = pay_date - timedelta(days=random.randint(1, 7))
             self.tables["LFB1"].at[idx, "BANKN"] = "99999999"
             self.tables["LFB1"].at[idx, "FRAUD_LABEL"] = 1
