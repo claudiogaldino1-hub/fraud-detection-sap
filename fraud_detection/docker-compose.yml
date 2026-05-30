@@ -1,0 +1,73 @@
+version: "3.9"
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fraud_detection_api
+    ports:
+      - "8000:8000"
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-change-this-secret-in-production}
+      - AUDIT_USER=api
+    volumes:
+      - ./data:/app/data
+      - ./governance:/app/governance
+      - ./models/registry:/app/models/registry
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - fraud_net
+
+  pipeline:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fraud_detection_pipeline
+    command: python mlops/pipeline.py
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - AUDIT_USER=pipeline
+    volumes:
+      - ./data:/app/data
+      - ./governance:/app/governance
+      - ./models/registry:/app/models/registry
+    depends_on:
+      api:
+        condition: service_healthy
+    profiles:
+      - pipeline
+    networks:
+      - fraud_net
+
+  tests:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fraud_detection_tests
+    command: >
+      sh -c "python -m pytest tests/ -v --tb=short
+             --junitxml=/app/data/processed/test_results.xml"
+    environment:
+      - ANTHROPIC_API_KEY=dummy-key-for-tests
+      - JWT_SECRET_KEY=test-secret
+    volumes:
+      - ./data:/app/data
+    profiles:
+      - test
+    networks:
+      - fraud_net
+
+networks:
+  fraud_net:
+    driver: bridge
+
+volumes:
+  fraud_data:
