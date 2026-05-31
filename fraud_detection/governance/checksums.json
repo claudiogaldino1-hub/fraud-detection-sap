@@ -17,5 +17,26 @@
       "governance/model_versions.json": "68ca25af9d61a97b21401e18e95e5aebf7f4df7520d0b10ab1ec896385a016f5",
       "governance/cost_report.json": "d557dbe8e0b4dbb836701bd7beebdf165105cfd70d4621a682bee1cd8ae1b926"
     }
+  },
+  {
+    "pipeline_id": "a5189a1b",
+    "timestamp": "2026-05-31T14:44:15.686635+00:00",
+    "file_count": 14,
+    "files": {
+      "models/registry/autoencoder_104db464.pkl": "9bea78e19a4067cb0cbcae98491f689b615a7311581b02778bb37bad85e2aec5",
+      "models/registry/autoencoder_3ce6f16b.pkl": "7b904c669c04ff311605c1e4a28dfb4cc564b3fefef08fa6c5da64822c24576d",
+      "models/registry/autoencoder_77e3e96f.pkl": "a8f56bee3383bfe30a38d8b06837b6a4c87afdfac18b0ab21fcd6499293696eb",
+      "models/registry/autoencoder_a5189a1b.pkl": "1c250fa9f6e0ad128148f02c3781a22b95dc62e193df073d4dacfe1b85ea02ef",
+      "models/registry/autoencoder_bb67bc31.pkl": "d7de87a3149aec9d155f7aec4d3a73fe118ffca4c5bb00d57897e1dcbdb99ab3",
+      "models/registry/isolation_forest_104db464.pkl": "9a4aa587170a1516a9757386e3942836255012f24d5aa9351aefd82a987d3a50",
+      "models/registry/isolation_forest_3ce6f16b.pkl": "06168d528cfbc70dba8744cdc5b70464e73c5a36b670005a4b4e9176b5d70a8c",
+      "models/registry/isolation_forest_77e3e96f.pkl": "9a4aa587170a1516a9757386e3942836255012f24d5aa9351aefd82a987d3a50",
+      "models/registry/isolation_forest_a5189a1b.pkl": "9a4aa587170a1516a9757386e3942836255012f24d5aa9351aefd82a987d3a50",
+      "models/registry/isolation_forest_bb67bc31.pkl": "01c7f57579123e12f8709b20232c19ac9ca1bb15ab74aefd3af26cab1cb4286c",
+      "data/processed/alerts.parquet": "4487fad62f11996cde19ea891cbac66474056b92552b3a7ddf6cfe8f228ffff5",
+      "governance/AUDIT_LOG.json": "08ca7d2b94f02b2fa024deca27a0b47944435fb0178fdf89a9432e8f70d454b2",
+      "governance/model_versions.json": "60bf25acd62f582ce8a5da898d02a15a3fbc26fbf260a4fc8921b2d0a0cfce83",
+      "governance/cost_report.json": "95cb5d0575ccc8d92f7699d36233da25efff1225a4c980ea8ef80f92baf92edd"
+    }
   }
 ]

@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>SAP P2P — Audit Dashboard</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Arial,sans-serif;background:#0a0d14;color:#e0e0e0;min-height:100vh}
+header{background:linear-gradient(135deg,#0f1117 0%,#1a1f2e 100%);
+  padding:22px 32px;border-bottom:2px solid #457b9d}
+header h1{font-size:1.45rem;color:#fff}
+header p{font-size:.82rem;color:#8899aa;margin-top:4px}
+.badge{display:inline-block;padding:2px 9px;border-radius:10px;font-size:.7rem;
+  font-weight:700;margin-left:8px;vertical-align:middle}
+main{padding:26px 32px;max-width:1400px;margin:0 auto}
+section{margin-bottom:30px}
+h2.st{font-size:.78rem;color:#8899aa;text-transform:uppercase;letter-spacing:1.2px;
+  margin-bottom:14px;padding-bottom:5px;border-bottom:1px solid #1e2535}
+/* overall banner */
+.overall-banner{border-radius:12px;padding:20px 28px;margin-bottom:28px;
+  display:flex;align-items:center;gap:20px;border:1px solid}
+.semaphore{width:56px;height:56px;border-radius:50%;display:flex;
+  align-items:center;justify-content:center;font-size:1.6rem;flex-shrink:0;
+  box-shadow:0 0 24px var(--glow)}
+.overall-text h3{font-size:1.1rem;font-weight:700;margin-bottom:4px}
+.overall-text p{font-size:.85rem;color:#8899aa;line-height:1.5}
+/* component semaphores */
+.comp-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}
+.comp-card{background:#111827;border:1px solid #1e2535;border-radius:10px;
+  padding:18px 16px;text-align:center;position:relative;overflow:hidden}
+.comp-card::before{content:'';position:absolute;top:0;left:0;right:0;
+  height:3px;background:var(--ac)}
+.comp-light{width:40px;height:40px;border-radius:50%;margin:0 auto 10px;
+  display:flex;align-items:center;justify-content:center;font-size:1.2rem;
+  box-shadow:0 0 16px var(--glow)}
+.comp-name{font-size:.82rem;color:#8899aa;text-transform:uppercase;
+  letter-spacing:.5px;margin-bottom:4px}
+.comp-status{font-size:.9rem;font-weight:700}
+/* panels */
+.panel{background:#111827;border:1px solid #1e2535;border-radius:10px;padding:20px}
+.panel h3{font-size:.77rem;color:#8899aa;text-transform:uppercase;
+  letter-spacing:.8px;margin-bottom:14px}
+/* timeline */
+.timeline{display:flex;flex-direction:column;gap:12px}
+.tl-item{background:#0f1520;border:1px solid #1e2535;border-radius:8px;
+  padding:14px 18px;display:grid;
+  grid-template-columns:auto 1fr auto;gap:0 16px;align-items:start}
+.tl-num{width:32px;height:32px;border-radius:50%;background:#1e2535;
+  display:flex;align-items:center;justify-content:center;
+  font-size:.78rem;color:#8899aa;font-weight:700;flex-shrink:0;margin-top:2px}
+.tl-body{}
+.tl-title{font-size:.88rem;color:#fff;font-weight:600;margin-bottom:4px}
+.tl-meta{font-size:.76rem;color:#8899aa;line-height:1.7}
+.tl-meta span{color:#a8dadc;font-family:monospace}
+.tl-right{text-align:right;white-space:nowrap}
+.tl-cost{font-size:.82rem;color:#4ecdc4;font-weight:600}
+.tl-alerts{font-size:.75rem;color:#8899aa;margin-top:3px}
+/* checksums table */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.78rem}
+th{background:#0a0d14;color:#8899aa;font-size:.69rem;text-transform:uppercase;
+  letter-spacing:.4px;padding:9px 12px;text-align:left;
+  border-bottom:1px solid #1e2535;white-space:nowrap}
+td{padding:8px 12px;border-bottom:1px solid #141a24;color:#ccc;white-space:nowrap}
+tr:hover td{background:#1a2030}
+tr:last-child td{border-bottom:none}
+.st-ok{color:#2ec4b6;font-weight:700}
+.st-warn{color:#f4a261;font-weight:700}
+.st-bad{color:#e63946;font-weight:700}
+.mono{font-family:'Cascadia Code','Consolas',monospace;font-size:.72rem}
+/* action pills */
+.pills{display:flex;flex-wrap:wrap;gap:8px}
+.pill{background:#1e2535;border-radius:20px;padding:4px 12px;font-size:.75rem;
+  display:flex;gap:6px;align-items:center}
+.pill-count{background:#2a3548;border-radius:10px;padding:1px 7px;
+  font-weight:700;color:#a8dadc}
+footer{text-align:center;padding:16px;color:#2a3040;font-size:.7rem;
+  border-top:1px solid #1e2535;margin-top:8px}
+</style>
+</head>
+<body>
+<header>
+  <h1>&#x1F6E1; SAP P2P &mdash; Audit &amp; Integrity Dashboard
+    <span class="badge" id="hdr-badge"></span>
+  </h1>
+  <p id="hdr-sub"></p>
+</header>
+<main>
+
+<!-- Overall banner -->
+<div class="overall-banner" id="overall-banner">
+  <div class="semaphore" id="overall-light"></div>
+  <div class="overall-text">
+    <h3 id="overall-title"></h3>
+    <p id="overall-desc"></p>
+  </div>
+</div>
+
+<!-- Component semaphores -->
+<section>
+  <h2 class="st">Integridade por Componente</h2>
+  <div class="comp-row" id="comp-row"></div>
+</section>
+
+<!-- Timeline -->
+<section>
+  <h2 class="st">Timeline de Pipeline Runs</h2>
+  <div class="panel">
+    <h3>Entradas PIPELINE_RUN_COMPLETE no audit log</h3>
+    <div class="timeline" id="timeline"></div>
+  </div>
+</section>
+
+<!-- Checksums table -->
+<section>
+  <h2 class="st">Checksums SHA-256 dos Artefatos Criticos</h2>
+  <div class="panel">
+    <h3 id="chk-title"></h3>
+    <div class="tbl-wrap">
+      <table>
+        <thead><tr>
+          <th>Componente</th><th>Arquivo</th>
+          <th>SHA-256 (16 chars)</th><th>Status</th>
+        </tr></thead>
+        <tbody id="chk-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- Audit actions summary -->
+<section>
+  <h2 class="st">Resumo de Acoes no Audit Log</h2>
+  <div class="panel">
+    <h3 id="log-title"></h3>
+    <div class="pills" id="action-pills"></div>
+  </div>
+</section>
+
+</main>
+<footer>SAP P2P Fraud Detection &mdash; Audit Dashboard &mdash; <span id="footer-ts"></span></footer>
+
+<script>
+const D = {"generated_at": "2026-05-31 14:44:16 UTC", "overall": "OK", "component_status": {"Modelos ML": "OK", "Dados": "OK", "Governanca": "OK"}, "file_statuses": [{"file": "models/registry/autoencoder_104db464.pkl", "digest": "9bea78e19a4067cb0cbcae98491f689b615a7311581b02778bb37bad85e2aec5", "status": "OK", "component": "Modelos ML", "short": "9bea78e19a4067cb\u2026"}, {"file": "models/registry/autoencoder_3ce6f16b.pkl", "digest": "7b904c669c04ff311605c1e4a28dfb4cc564b3fefef08fa6c5da64822c24576d", "status": "OK", "component": "Modelos ML", "short": "7b904c669c04ff31\u2026"}, {"file": "models/registry/autoencoder_77e3e96f.pkl", "digest": "a8f56bee3383bfe30a38d8b06837b6a4c87afdfac18b0ab21fcd6499293696eb", "status": "OK", "component": "Modelos ML", "short": "a8f56bee3383bfe3\u2026"}, {"file": "models/registry/autoencoder_a5189a1b.pkl", "digest": "1c250fa9f6e0ad128148f02c3781a22b95dc62e193df073d4dacfe1b85ea02ef", "status": "OK", "component": "Modelos ML", "short": "1c250fa9f6e0ad12\u2026"}, {"file": "models/registry/autoencoder_bb67bc31.pkl", "digest": "d7de87a3149aec9d155f7aec4d3a73fe118ffca4c5bb00d57897e1dcbdb99ab3", "status": "OK", "component": "Modelos ML", "short": "d7de87a3149aec9d\u2026"}, {"file": "models/registry/isolation_forest_104db464.pkl", "digest": "9a4aa587170a1516a9757386e3942836255012f24d5aa9351aefd82a987d3a50", "status": "OK", "component": "Modelos ML", "short": "9a4aa587170a1516\u2026"}, {"file": "models/registry/isolation_forest_3ce6f16b.pkl", "digest": "06168d528cfbc70dba8744cdc5b70464e73c5a36b670005a4b4e9176b5d70a8c", "status": "OK", "component": "Modelos ML", "short": "06168d528cfbc70d\u2026"}, {"file": "models/registry/isolation_forest_77e3e96f.pkl", "digest": "9a4aa587170a1516a9757386e3942836255012f24d5aa9351aefd82a987d3a50", "status": "OK", "component": "Modelos ML", "short": "9a4aa587170a1516\u2026"}, {"file": "models/registry/isolation_forest_a5189a1b.pkl", "digest": "9a4aa587170a1516a9757386e3942836255012f24d5aa9351aefd82a987d3a50", "status": "OK", "component": "Modelos ML", "short": "9a4aa587170a1516\u2026"}, {"file": "models/registry/isolation_forest_bb67bc31.pkl", "digest": "01c7f57579123e12f8709b20232c19ac9ca1bb15ab74aefd3af26cab1cb4286c", "status": "OK", "component": "Modelos ML", "short": "01c7f57579123e12\u2026"}, {"file": "data/processed/alerts.parquet", "digest": "4487fad62f11996cde19ea891cbac66474056b92552b3a7ddf6cfe8f228ffff5", "status": "OK", "component": "Dados", "short": "4487fad62f11996c\u2026"}, {"file": "governance/AUDIT_LOG.json", "digest": "08ca7d2b94f02b2fa024deca27a0b47944435fb0178fdf89a9432e8f70d454b2", "status": "OK", "component": "Governanca", "short": "08ca7d2b94f02b2f\u2026"}, {"file": "governance/model_versions.json", "digest": "60bf25acd62f582ce8a5da898d02a15a3fbc26fbf260a4fc8921b2d0a0cfce83", "status": "OK", "component": "Governanca", "short": "60bf25acd62f582c\u2026"}, {"file": "governance/cost_report.json", "digest": "95cb5d0575ccc8d92f7699d36233da25efff1225a4c980ea8ef80f92baf92edd", "status": "OK", "component": "Governanca", "short": "95cb5d0575ccc8d9\u2026"}], "timeline": [{"seq": 17, "pipeline_id": "77e3e96f", "timestamp": "2026-05-31 14:31:57", "author": "Claudio Galdino <claudio.galdino1@gmail.com>", "os_user": "claud", "hostname": "Claudio", "commit": "7454dcf", "branch": "master", "alerts": 404, "cost": 0.000307, "narratives": 0, "entry_hash": "4177cbfbc162eeb7\u2026"}, {"seq": 22, "pipeline_id": "a5189a1b", "timestamp": "2026-05-31 14:44:16", "author": "Claudio Galdino <claudio.galdino1@gmail.com>", "os_user": "claud", "hostname": "Claudio", "commit": "dd52d10", "branch": "master", "alerts": 420, "cost": 0.000357, "narratives": 0, "entry_hash": "9d3045db5cce4b9b\u2026"}], "action_counts": {"PIPELINE_START": 8, "MODEL_TRAINED": 5, "PIPELINE_COMPLETE": 5, "CHECKSUMS_SAVED": 2, "PIPELINE_RUN_COMPLETE": 2}, "total_log_entries": 22, "last_pipeline_id": "a5189a1b", "checksums_snapshots": 2};
+
+const STATUS_CFG = {
+  OK:       {color:'#2ec4b6', glow:'#2ec4b666', icon:'✓', label:'INTEGRO',      bg:'#2ec4b611', border:'#2ec4b633'},
+  TAMPERED: {color:'#e63946', glow:'#e6394666', icon:'✗', label:'ADULTERADO',   bg:'#e6394611', border:'#e6394633'},
+  MISSING:  {color:'#f4a261', glow:'#f4a26166', icon:'!', label:'AUSENTE',      bg:'#f4a26111', border:'#f4a26133'},
+  UNKNOWN:  {color:'#8899aa', glow:'#88994466', icon:'?', label:'DESCONHECIDO', bg:'#88994411', border:'#88994433'},
+};
+
+const $ = id => document.getElementById(id);
+function cfg(s){ return STATUS_CFG[s] || STATUS_CFG.UNKNOWN; }
+
+// ── header ──────────────────────────────────────────────────────────────
+$('footer-ts').textContent = D.generated_at;
+$('hdr-sub').textContent   =
+  `Pipeline ${D.last_pipeline_id} | ${D.total_log_entries} entradas no log | `+
+  `${D.checksums_snapshots} snapshot(s) de checksums | Gerado em: ${D.generated_at}`;
+
+const oc = cfg(D.overall);
+const badge = $('hdr-badge');
+badge.textContent   = oc.label;
+badge.style.cssText = `background:${oc.bg};color:${oc.color};border:1px solid ${oc.border}`;
+
+// ── overall banner ───────────────────────────────────────────────────────
+const banner = $('overall-banner');
+banner.style.background = oc.bg;
+banner.style.borderColor = oc.border;
+const light = $('overall-light');
+light.textContent = oc.icon;
+light.style.cssText = `width:56px;height:56px;border-radius:50%;display:flex;
+  align-items:center;justify-content:center;font-size:1.6rem;flex-shrink:0;
+  background:${oc.bg};color:${oc.color};box-shadow:0 0 24px ${oc.glow};
+  border:2px solid ${oc.border}`;
+$('overall-title').textContent = `Status Geral: ${oc.label}`;
+$('overall-title').style.color = oc.color;
+$('overall-desc').textContent  = D.overall === 'OK'
+  ? `Todos os ${D.file_statuses.length} artefatos críticos verificados e íntegros. `+
+    `Hash chain do audit log preservado. Sistema pronto para operação.`
+  : D.overall === 'TAMPERED'
+  ? `ATENÇÃO: Adulteração detectada em um ou mais artefatos críticos. `+
+    `Verifique imediatamente os arquivos sinalizados abaixo.`
+  : `Alguns artefatos monitorados não foram encontrados. Execute o pipeline para regenerá-los.`;
+
+// ── component semaphores ─────────────────────────────────────────────────
+const compRow = $('comp-row');
+Object.entries(D.component_status).forEach(([name, status]) => {
+  const c = cfg(status);
+  compRow.innerHTML += `
+    <div class="comp-card" style="--ac:${c.color}">
+      <div class="comp-light" style="background:${c.bg};color:${c.color};
+        box-shadow:0 0 16px ${c.glow};border:2px solid ${c.border}">
+        ${c.icon}
+      </div>
+      <div class="comp-name">${name}</div>
+      <div class="comp-status" style="color:${c.color}">${c.label}</div>
+    </div>`;
+});
+
+// ── timeline ─────────────────────────────────────────────────────────────
+const tl = $('timeline');
+if (!D.timeline.length) {
+  tl.innerHTML = '<p style="color:#445;font-size:.82rem">Nenhum run PIPELINE_RUN_COMPLETE registrado ainda.</p>';
+} else {
+  [...D.timeline].reverse().forEach((r, i) => {
+    tl.innerHTML += `
+      <div class="tl-item">
+        <div class="tl-num">${D.timeline.length - i}</div>
+        <div class="tl-body">
+          <div class="tl-title">Pipeline <span class="mono">${r.pipeline_id}</span>
+            &nbsp;&mdash;&nbsp;${r.timestamp}
+          </div>
+          <div class="tl-meta">
+            <b>Autor:</b> ${r.author}&nbsp;&nbsp;
+            <b>SO:</b> <span>${r.os_user}@${r.hostname}</span>&nbsp;&nbsp;
+            <b>Commit:</b> <span>${r.commit}</span> (${r.branch})<br>
+            <b>Hash entrada:</b> <span style="color:#445">${r.entry_hash}</span>
+            ${r.narratives ? `&nbsp;&nbsp;<b>Narrativas:</b> ${r.narratives}` : ''}
+          </div>
+        </div>
+        <div class="tl-right">
+          <div class="tl-cost">$ ${r.cost.toFixed(6)}</div>
+          <div class="tl-alerts">${r.alerts} alertas</div>
+        </div>
+      </div>`;
+  });
+}
+
+// ── checksums table ───────────────────────────────────────────────────────
+$('chk-title').textContent =
+  `${D.file_statuses.length} artefatos monitorados — snapshot ${D.last_pipeline_id}`;
+const tbody = $('chk-tbody');
+D.file_statuses.forEach(f => {
+  const c = cfg(f.status);
+  const fname = f.file.split('/').pop();
+  tbody.innerHTML += `<tr>
+    <td style="color:#8899aa">${f.component}</td>
+    <td class="mono" title="${f.file}">${f.file}</td>
+    <td class="mono" style="color:#445">${f.short}</td>
+    <td class="${f.status==='OK'?'st-ok':f.status==='TAMPERED'?'st-bad':'st-warn'}">
+      ${c.icon} ${c.label}
+    </td>
+  </tr>`;
+});
+
+// ── action pills ──────────────────────────────────────────────────────────
+$('log-title').textContent = `${D.total_log_entries} entradas totais no audit log`;
+const pillsEl = $('action-pills');
+Object.entries(D.action_counts)
+  .sort((a,b) => b[1]-a[1])
+  .forEach(([action, count]) => {
+    pillsEl.innerHTML += `
+      <div class="pill">
+        <span>${action}</span>
+        <span class="pill-count">${count}</span>
+      </div>`;
+  });
+</script>
+</body>
+</html>

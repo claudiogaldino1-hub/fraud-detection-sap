@@ -224,7 +224,43 @@ def run_pipeline(
     except Exception as exc:
         print(f"  Warning: changelog update failed — {exc}")
 
+    # ------------------------------------------------------------------
+    # Step 12: Audit dashboard
+    # ------------------------------------------------------------------
+    print("Step 12: Generating audit dashboard...")
+    try:
+        _run_script("scripts/generate_audit_dashboard.py")
+    except Exception as exc:
+        print(f"  Warning: audit dashboard failed — {exc}")
+
+    # ------------------------------------------------------------------
+    # Step 13: Executive report
+    # ------------------------------------------------------------------
+    print("Step 13: Generating executive report...")
+    try:
+        _run_script("scripts/generate_executive_report.py")
+    except Exception as exc:
+        print(f"  Warning: executive report failed — {exc}")
+
+    # ------------------------------------------------------------------
+    # Step 14: Documentation versioning
+    # ------------------------------------------------------------------
+    print("Step 14: Versioning documentation...")
+    try:
+        from scripts.version_docs import run as version_docs_run
+        version_docs_run(pipeline_id=pipeline_id)
+    except Exception as exc:
+        print(f"  Warning: doc versioning failed — {exc}")
+
     return alerts_df
+
+
+def _run_script(rel_path: str) -> None:
+    """Executes a script file in the current Python interpreter via runpy."""
+    import runpy
+    script_path = Path(rel_path)
+    if script_path.exists():
+        runpy.run_path(str(script_path), run_name="__main__")
 
 
 def _generate_with_cost_tracking(
