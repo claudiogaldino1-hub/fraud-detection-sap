@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>SAP P2P &mdash; Fraud Detection Dashboard</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Arial,sans-serif;background:#0f1117;color:#e0e0e0;min-height:100vh}
+header{background:linear-gradient(135deg,#1a1f2e 0%,#16213e 100%);
+  padding:24px 32px;border-bottom:2px solid #e63946}
+header h1{font-size:1.55rem;color:#fff;letter-spacing:.4px}
+header p{font-size:.85rem;color:#8899aa;margin-top:5px}
+.badge{display:inline-block;padding:2px 10px;border-radius:12px;
+  font-size:.72rem;font-weight:700;margin-left:10px;vertical-align:middle}
+.badge-live{background:#e63946;color:#fff}
+main{padding:28px 32px;max-width:1400px;margin:0 auto}
+section{margin-bottom:34px}
+h2.section-title{font-size:.82rem;color:#8899aa;text-transform:uppercase;
+  letter-spacing:1.2px;margin-bottom:16px;padding-bottom:6px;
+  border-bottom:1px solid #1e2535}
+/* KPI */
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:14px}
+.kpi{background:#1a1f2e;border:1px solid #1e2535;border-radius:10px;
+  padding:20px 16px;text-align:center;position:relative;overflow:hidden}
+.kpi::before{content:'';position:absolute;top:0;left:0;right:0;
+  height:3px;background:var(--ac,#e63946)}
+.kpi-val{font-size:1.9rem;font-weight:700;color:#fff;line-height:1.1}
+.kpi-lbl{font-size:.73rem;color:#8899aa;margin-top:6px;
+  text-transform:uppercase;letter-spacing:.5px}
+.kpi-sub{font-size:.7rem;color:#445;margin-top:3px}
+/* Charts */
+.charts-row{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+.chart-box{background:#1a1f2e;border:1px solid #1e2535;border-radius:10px;padding:20px}
+.chart-box h3{font-size:.8rem;color:#8899aa;text-transform:uppercase;
+  letter-spacing:.8px;margin-bottom:14px}
+canvas{display:block;max-width:100%}
+/* Table */
+.table-wrap{background:#1a1f2e;border:1px solid #1e2535;
+  border-radius:10px;overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.79rem}
+thead th{background:#0f1117;color:#8899aa;text-transform:uppercase;
+  font-size:.7rem;letter-spacing:.5px;padding:10px 12px;text-align:left;
+  white-space:nowrap;position:sticky;top:0;z-index:2;
+  border-bottom:1px solid #1e2535}
+tbody td{padding:9px 12px;border-bottom:1px solid #141920;
+  white-space:nowrap;color:#ccc}
+tbody tr:last-child td{border-bottom:none}
+tbody tr:hover td{background:#1e2535}
+.tier-HIGH{display:inline-block;padding:2px 9px;border-radius:10px;
+  font-size:.72rem;font-weight:700;
+  background:#e6394622;color:#e63946;border:1px solid #e6394655}
+.tier-MEDIUM{display:inline-block;padding:2px 9px;border-radius:10px;
+  font-size:.72rem;font-weight:700;
+  background:#f4a26122;color:#f4a261;border:1px solid #f4a26155}
+.tier-LOW{display:inline-block;padding:2px 9px;border-radius:10px;
+  font-size:.72rem;font-weight:700;
+  background:#2ec4b622;color:#2ec4b6;border:1px solid #2ec4b655}
+.rank{color:#445;font-variant-numeric:tabular-nums}
+.vendor-id{color:#a8dadc;font-weight:600}
+.amount{color:#f4a261;font-weight:600}
+.score-hi{color:#e63946;font-weight:700}
+.score-mid{color:#f4a261}
+.mono{font-family:'Cascadia Code','Consolas',monospace;font-size:.72rem}
+/* SHAP section */
+.shap-panel{background:#1a1f2e;border:1px solid #1e2535;
+  border-radius:10px;padding:0;overflow:hidden}
+.shap-chart-area{padding:24px 28px 8px}
+.shap-legend{padding:0 28px 24px}
+.shap-legend-title{font-size:.75rem;color:#8899aa;text-transform:uppercase;
+  letter-spacing:.8px;margin-bottom:14px;padding-top:20px;
+  border-top:1px solid #1e2535}
+.shap-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+.shap-card{background:#0f1117;border:1px solid #1e2535;border-radius:8px;
+  padding:14px 16px}
+.shap-card-rank{font-size:.68rem;color:#445;font-weight:700;
+  text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.shap-card-label{font-size:.88rem;color:#e0e0e0;font-weight:600;
+  margin-bottom:6px}
+.shap-card-badge{display:inline-block;padding:1px 8px;border-radius:8px;
+  font-size:.7rem;font-weight:700;background:#e6394622;
+  color:#e63946;border:1px solid #e6394644;margin-bottom:8px}
+.shap-card-desc{font-size:.77rem;color:#8899aa;line-height:1.5}
+.shap-card-sap{font-size:.7rem;color:#445;margin-top:6px;
+  font-style:italic}
+footer{text-align:center;padding:18px;color:#334;font-size:.73rem;
+  border-top:1px solid #1e2535;margin-top:8px}
+@media(max-width:768px){.charts-row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>&#x1F6E1; SAP P2P &mdash; Fraud Detection Dashboard
+    <span class="badge badge-live">LIVE</span>
+  </h1>
+  <p id="gen-ts"></p>
+</header>
+
+<main>
+
+<!-- KPIs -->
+<section>
+  <h2 class="section-title">Resumo Executivo</h2>
+  <div class="kpi-row">
+    <div class="kpi" style="--ac:#e63946">
+      <div class="kpi-val" id="k-total"></div>
+      <div class="kpi-lbl">Total de Alertas</div>
+    </div>
+    <div class="kpi" style="--ac:#e63946">
+      <div class="kpi-val" id="k-high"></div>
+      <div class="kpi-lbl">Risco Alto</div>
+      <div class="kpi-sub">Acao imediata</div>
+    </div>
+    <div class="kpi" style="--ac:#f4a261">
+      <div class="kpi-val" id="k-medium"></div>
+      <div class="kpi-lbl">Risco Medio</div>
+    </div>
+    <div class="kpi" style="--ac:#2ec4b6">
+      <div class="kpi-val" id="k-low"></div>
+      <div class="kpi-lbl">Risco Baixo</div>
+    </div>
+    <div class="kpi" style="--ac:#4ecdc4">
+      <div class="kpi-val" id="k-ens-mean"></div>
+      <div class="kpi-lbl">Score Ensemble Medio</div>
+    </div>
+    <div class="kpi" style="--ac:#e63946">
+      <div class="kpi-val" id="k-ens-max"></div>
+      <div class="kpi-lbl">Score Maximo</div>
+    </div>
+    <div class="kpi" style="--ac:#457b9d">
+      <div class="kpi-val" id="k-if-mean"></div>
+      <div class="kpi-lbl">Score IF Medio</div>
+    </div>
+    <div class="kpi" style="--ac:#6a4c93">
+      <div class="kpi-val" id="k-ae-mean"></div>
+      <div class="kpi-lbl">Score AE Medio</div>
+    </div>
+  </div>
+</section>
+
+<!-- Charts -->
+<section>
+  <h2 class="section-title">Distribuicao de Alertas</h2>
+  <div class="charts-row">
+    <div class="chart-box">
+      <h3>Alertas por Tipo de Fraude</h3>
+      <canvas id="cFraud"></canvas>
+    </div>
+    <div class="chart-box">
+      <h3>Distribuicao do Score Ensemble</h3>
+      <canvas id="cHist"></canvas>
+    </div>
+  </div>
+</section>
+
+<!-- Table -->
+<section>
+  <h2 class="section-title">Top 20 Alertas Criticos</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th><th>Fornecedor</th><th>Empresa</th><th>Documento</th>
+          <th>Valor</th><th>Data Pagto</th><th>Tipo de Fraude</th>
+          <th>IF</th><th>AE</th><th>Grafo</th><th>Ensemble</th><th>Risco</th>
+        </tr>
+      </thead>
+      <tbody id="alert-tbody"></tbody>
+    </table>
+  </div>
+</section>
+
+<!-- SHAP -->
+<section>
+  <h2 class="section-title">
+    Importancia das Features (SHAP) &mdash; Isolation Forest &bull;
+    <span style="font-weight:400;text-transform:none;letter-spacing:0;
+      color:#556;font-size:.78rem">
+      |SHAP mean(|valor|)| nos 20 alertas de maior score
+    </span>
+  </h2>
+  <div class="shap-panel">
+    <div class="shap-chart-area">
+      <canvas id="cShap"></canvas>
+    </div>
+    <div class="shap-legend">
+      <div class="shap-legend-title">
+        O que cada feature significa no contexto SAP P2P
+      </div>
+      <div class="shap-cards" id="shap-cards"></div>
+    </div>
+  </div>
+</section>
+
+</main>
+<footer>
+  SAP P2P Fraud Detection &mdash; Dados Sinteticos &mdash;
+  SHAP via Isolation Forest &mdash; <span id="footer-ts"></span>
+</footer>
+
+<script>
+/* ==============================================================
+   DATA — embutido inline pelo generate_dashboard.py
+   ============================================================== */
+const DATA = {"total": 403, "tier_counts": {"MEDIUM": 401, "HIGH": 2}, "score_stats": {"mean": 0.4543, "max": 0.8846, "min": 0.4001, "if_mean": 0.4244, "ae_mean": 0.0165, "graph_mean": 1.0}, "ft_labels": ["SEM_TIPO", "ROUND_PAYMENT", "EARLY_PAYMENT", "BELOW_THRESHOLD", "SUSPICIOUS_RECURRENCE", "DUPLICATE_PAYMENT", "WRONG_BANK_ACCOUNT", "PAYMENT_BURST", "FAST_VENDOR_PAYMENT"], "ft_values": [268, 39, 37, 16, 12, 9, 8, 8, 6], "hist_labels": ["0.400", "0.424", "0.449", "0.473", "0.497", "0.521", "0.545", "0.570", "0.594", "0.618", "0.642", "0.667", "0.691", "0.715", "0.739", "0.764", "0.788", "0.812", "0.836", "0.860"], "hist_values": [164, 90, 45, 28, 19, 18, 20, 10, 3, 3, 1, 0, 0, 0, 0, 0, 0, 0, 0, 2], "top20": [{"alert_id": "4a787f3d-098f-47b3-a7a5-91dfdc445c45", "LIFNR": "V000213", "BUKRS": "2000", "BELNR": "FI3335544933", "DMBTR": "R$ 1,139.75", "AUGDT": "2024-06-18", "FRAUD_TYPE": "", "if_score": 0.6925, "ae_score": 0.9778, "graph_score": 1.0, "ensemble_score": 0.8846, "risk_tier": "HIGH"}, {"alert_id": "a29bcac8-6812-4d96-8f26-ee7bdeef9e24", "LIFNR": "V000298", "BUKRS": "3000", "BELNR": "FI5773518071", "DMBTR": "R$ 1,119.79", "AUGDT": "2024-07-29", "FRAUD_TYPE": "", "if_score": 0.6493, "ae_score": 1.0, "graph_score": 1.0, "ensemble_score": 0.8773, "risk_tier": "HIGH"}, {"alert_id": "1809e64e-ee80-4b26-b1cb-a3a4e61c841c", "LIFNR": "V000051", "BUKRS": "2000", "BELNR": "FI4087737551", "DMBTR": "R$ 10,000.00", "AUGDT": "2023-03-23", "FRAUD_TYPE": "ROUND_PAYMENT", "if_score": 1.0, "ae_score": 0.0266, "graph_score": 1.0, "ensemble_score": 0.6593, "risk_tier": "MEDIUM"}, {"alert_id": "19dcdf69-20ab-4ed9-b3a0-aa8f6702234e", "LIFNR": "V000117", "BUKRS": "3000", "BELNR": "FI2772303756", "DMBTR": "R$ 5,000.00", "AUGDT": "2024-01-16", "FRAUD_TYPE": "ROUND_PAYMENT", "if_score": 0.8892, "ae_score": 0.0628, "graph_score": 1.0, "ensemble_score": 0.6332, "risk_tier": "MEDIUM"}, {"alert_id": "496b5a42-9c22-4812-8a96-e49ef92117e3", "LIFNR": "V000239", "BUKRS": "1000", "BELNR": "FI5023467524", "DMBTR": "R$ 5,000.00", "AUGDT": "2024-10-07", "FRAUD_TYPE": "ROUND_PAYMENT", "if_score": 0.8717, "ae_score": 0.0644, "graph_score": 1.0, "ensemble_score": 0.6276, "risk_tier": "MEDIUM"}, {"alert_id": "46beee6b-8ed7-4de5-b1da-d945fa738eb1", "LIFNR": "V000120", "BUKRS": "1000", "BELNR": "FI3152033759", "DMBTR": "R$ 5,000.00", "AUGDT": "2024-04-18", "FRAUD_TYPE": "ROUND_PAYMENT", "if_score": 0.8848, "ae_score": 0.0507, "graph_score": 1.0, "ensemble_score": 0.6274, "risk_tier": "MEDIUM"}, {"alert_id": "2898c4fb-1265-43f7-bb28-dc3c818a3b73", "LIFNR": "V000208", "BUKRS": "3000", "BELNR": "FI1607361353", "DMBTR": "R$ 5,000.00", "AUGDT": "2024-07-08", "FRAUD_TYPE": "ROUND_PAYMENT", "if_score": 0.8392, "ae_score": 0.052, "graph_score": 1.0, "ensemble_score": 0.6119, "risk_tier": "MEDIUM"}, {"alert_id": "f1272be5-80a1-4e97-b399-ec458100255e", "LIFNR": "V000152", "BUKRS": "3000", "BELNR": "FI9649897863", "DMBTR": "R$ 10,000.00", "AUGDT": "2023-08-01", "FRAUD_TYPE": "ROUND_PAYMENT", "if_score": 0.8544, "ae_score": 0.0182, "graph_score": 1.0, "ensemble_score": 0.6054, "risk_tier": "MEDIUM"}, {"alert_id": "f977850a-d52b-4491-95ef-6f2e58606da8", "LIFNR": "V000154", "BUKRS": "3000", "BELNR": "FI0553902337", "DMBTR": "R$ 2,140.51", "AUGDT": "2024-09-13", "FRAUD_TYPE": "", "if_score": 0.608, "ae_score": 0.2528, "graph_score": 1.0, "ensemble_score": 0.6013, "risk_tier": "MEDIUM"}, {"alert_id": "8f2990a1-bfc5-44cf-9f24-c6ca6dd5a280", "LIFNR": "V000065", "BUKRS": "2000", "BELNR": "FI1641589694", "DMBTR": "R$ 10,000.00", "AUGDT": "2023-07-31", "FRAUD_TYPE": "ROUND_PAYMENT", "if_score": 0.8193, "ae_score": 0.0133, "graph_score": 1.0, "ensemble_score": 0.5914, "risk_tier": "MEDIUM"}, {"alert_id": "bf42bdce-9608-4f1e-8d0c-21c61d922460", "LIFNR": "V000055", "BUKRS": "3000", "BELNR": "FI6724455488", "DMBTR": "R$ 10,000.00", "AUGDT": "2024-07-17", "FRAUD_TYPE": "ROUND_PAYMENT", "if_score": 0.8042, "ae_score": 0.0173, "graph_score": 1.0, "ensemble_score": 0.5875, "risk_tier": "MEDIUM"}, {"alert_id": "23210722-e674-4184-9747-3fc41528cad6", "LIFNR": "V000147", "BUKRS": "2000", "BELNR": "FI5966768980", "DMBTR": "R$ 50,000.00", "AUGDT": "2024-09-25", "FRAUD_TYPE": "WRONG_BANK_ACCOUNT", "if_score": 0.7921, "ae_score": 0.0201, "graph_score": 1.0, "ensemble_score": 0.5843, "risk_tier": "MEDIUM"}, {"alert_id": "3333737a-9d9c-422b-a7a5-0a4b87a43e91", "LIFNR": "V000240", "BUKRS": "1000", "BELNR": "FI1179122288", "DMBTR": "R$ 107,773.43", "AUGDT": "2023-06-14", "FRAUD_TYPE": "SUSPICIOUS_RECURRENCE", "if_score": 0.767, "ae_score": 0.0379, "graph_score": 1.0, "ensemble_score": 0.5817, "risk_tier": "MEDIUM"}, {"alert_id": "0b4e4b92-08e3-470c-be16-be8e11c4b6ad", "LIFNR": "V000022", "BUKRS": "3000", "BELNR": "FI8964482040", "DMBTR": "R$ 10,000.00", "AUGDT": "2024-08-08", "FRAUD_TYPE": "ROUND_PAYMENT", "if_score": 0.7875, "ae_score": 0.016, "graph_score": 1.0, "ensemble_score": 0.5812, "risk_tier": "MEDIUM"}, {"alert_id": "2c1066fb-7f02-4ad2-8e1d-eff2f1777868", "LIFNR": "V000108", "BUKRS": "3000", "BELNR": "FI2733546707", "DMBTR": "R$ 25,000.00", "AUGDT": "2024-07-21", "FRAUD_TYPE": "ROUND_PAYMENT", "if_score": 0.7966, "ae_score": 0.0047, "graph_score": 1.0, "ensemble_score": 0.5805, "risk_tier": "MEDIUM"}, {"alert_id": "81a07bae-06d4-45e3-84dd-36c6842503ff", "LIFNR": "V000067", "BUKRS": "2000", "BELNR": "FI2666273347", "DMBTR": "R$ 10,000.00", "AUGDT": "2023-03-09", "FRAUD_TYPE": "ROUND_PAYMENT", "if_score": 0.7767, "ae_score": 0.015, "graph_score": 1.0, "ensemble_score": 0.5771, "risk_tier": "MEDIUM"}, {"alert_id": "d4e40b1c-3308-4a29-be8a-16fa7da29ada", "LIFNR": "V000292", "BUKRS": "2000", "BELNR": "FI1785473392", "DMBTR": "R$ 25,000.00", "AUGDT": "2023-02-10", "FRAUD_TYPE": "ROUND_PAYMENT", "if_score": 0.7864, "ae_score": 0.0047, "graph_score": 1.0, "ensemble_score": 0.5769, "risk_tier": "MEDIUM"}, {"alert_id": "3ddd7765-66e5-440a-991f-f85a88849e20", "LIFNR": "V000125", "BUKRS": "1000", "BELNR": "FI6971117000", "DMBTR": "R$ 50,000.00", "AUGDT": "2024-01-16", "FRAUD_TYPE": "ROUND_PAYMENT", "if_score": 0.776, "ae_score": 0.0055, "graph_score": 1.0, "ensemble_score": 0.5735, "risk_tier": "MEDIUM"}, {"alert_id": "5a0160a8-a1fc-4101-ac2b-6b5689f9d88f", "LIFNR": "V000210", "BUKRS": "1000", "BELNR": "FI2340709176", "DMBTR": "R$ 10,000.00", "AUGDT": "2023-11-30", "FRAUD_TYPE": "ROUND_PAYMENT", "if_score": 0.7631, "ae_score": 0.016, "graph_score": 1.0, "ensemble_score": 0.5727, "risk_tier": "MEDIUM"}, {"alert_id": "cf3a6110-3493-4cd1-9743-41396b8fdfde", "LIFNR": "V000045", "BUKRS": "3000", "BELNR": "FI2418194554", "DMBTR": "R$ 25,000.00", "AUGDT": "2024-02-20", "FRAUD_TYPE": "ROUND_PAYMENT", "if_score": 0.765, "ae_score": 0.0051, "graph_score": 1.0, "ensemble_score": 0.5695, "risk_tier": "MEDIUM"}], "shap_features": [{"feature": "days_since_vendor_created", "label": "Fornecedor criado recentemente", "description": "Dias entre o cadastro do fornecedor (LFA1.ERDAT) e o pagamento. Valores baixos indicam fornecedores cadastrados e pagos em janela curta \u2014 padrao classico de fornecedor fantasma ou cadastro fraudulento.", "importance": 0.38059}, {"feature": "vendor_payment_count_30d", "label": "Volume de pagamentos em 30 dias", "description": "Quantidade de documentos de pagamento (BSAK) para o mesmo fornecedor nos ultimos 30 dias. Picos suspeitos podem indicar fracionamento de pedido para fugir de alca de aprovacao ou conluio comprador-fornecedor.", "importance": 0.2791}, {"feature": "DMBTR", "label": "Valor do pagamento (BRL)", "description": "Valor contabil do documento de pagamento (BSEG.DMBTR em moeda local). Valores logo abaixo de limites de aprovacao (ex: R$49.999) sinalizam quebra de alca intencional. Valores redondos ativam o padrao \"round amount\".", "importance": 0.22317}, {"feature": "amount_deviation_from_vendor_mean", "label": "Desvio do valor em relacao ao historico do fornecedor", "description": "Distancia padronizada entre o valor do pagamento e a media historica do mesmo fornecedor (z-score simplificado). Desvios altos indicam fatura atipica que pode representar superfaturamento ou pagamento duplicado.", "importance": 0.20811}, {"feature": "WRBTR", "label": "Valor na moeda do documento", "description": "Valor original do documento na moeda da transacao (BSEG.WRBTR). Divergencias entre WRBTR e DMBTR apos conversao podem indicar manipulacao de taxa de cambio ou fatura alterada.", "importance": 0.19301}, {"feature": "hour_of_entry", "label": "Hora de lancamento no sistema", "description": "Hora em que o documento foi registrado no SAP (BKPF.CPUTM). Lancamentos fora do horario comercial (antes das 8h ou apos 18h, fins de semana) sao indicadores de acesso nao autorizado ou pagamento realizado sem supervisao.", "importance": 0.16735}, {"feature": "po_invoice_ratio", "label": "Relacao fatura vs. pedido de compra", "description": "Razao entre o valor da fatura (DMBTR) e o valor do pedido de compra (WRBTR). Valores muito diferentes de 1.0 sinalizam falha no three-way match (PO x Recebimento x Fatura), podendo indicar superfaturamento ou maverick spend (compra sem PO vinculado).", "importance": 0.15439}, {"feature": "days_to_pay", "label": "Prazo de pagamento", "description": "Dias entre a data de lancamento (BKPF.BUDAT) e a data de compensacao (BSAK.AUGDT). Valores negativos ou proximos de zero indicam pagamento antecipado sem justificativa \u2014 risco de cumplicidade com fornecedor.", "importance": 0.13424}, {"feature": "is_round_amount", "label": "Valor redondo (flag)", "description": "Flag binario (0/1) indicando se o valor corresponde a um montante redondo tipico (ex: R$ 5.000, R$ 50.000, R$ 100.000). Pagamentos redondos sem detalhamento de servicos sao anomalias classicas apontadas pela Lei de Benford e auditorias forenses.", "importance": 0.07708}], "generated_at": "2026-05-31 10:48:12"};
+
+/* ==============================================================
+   KPIs
+   ============================================================== */
+document.getElementById('gen-ts').textContent = 'Gerado em: ' + DATA.generated_at;
+document.getElementById('footer-ts').textContent = DATA.generated_at;
+document.getElementById('k-total').textContent    = DATA.total.toLocaleString('pt-BR');
+document.getElementById('k-high').textContent     = (DATA.tier_counts['HIGH']   || 0).toLocaleString('pt-BR');
+document.getElementById('k-medium').textContent   = (DATA.tier_counts['MEDIUM'] || 0).toLocaleString('pt-BR');
+document.getElementById('k-low').textContent      = (DATA.tier_counts['LOW']    || 0).toLocaleString('pt-BR');
+document.getElementById('k-ens-mean').textContent = DATA.score_stats.mean.toFixed(4);
+document.getElementById('k-ens-max').textContent  = DATA.score_stats.max.toFixed(4);
+document.getElementById('k-if-mean').textContent  = DATA.score_stats.if_mean.toFixed(4);
+document.getElementById('k-ae-mean').textContent  = DATA.score_stats.ae_mean.toFixed(4);
+
+/* ==============================================================
+   Canvas helpers
+   ============================================================== */
+function initCanvas(id, heightPx) {
+  const canvas = document.getElementById(id);
+  if (!canvas) return null;
+  const ratio = window.devicePixelRatio || 1;
+  const w = canvas.parentElement.clientWidth - 40;
+  const h = heightPx;
+  canvas.width  = w * ratio;
+  canvas.height = h * ratio;
+  canvas.style.width  = w + 'px';
+  canvas.style.height = h + 'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(ratio, ratio);
+  return { ctx, w, h };
+}
+
+/* vertical bar chart */
+function drawBars(canvasId, labels, values, color) {
+  const c = initCanvas(canvasId, 270); if (!c) return;
+  const { ctx, w, h } = c;
+  const pad = { t:24, r:12, b:90, l:44 };
+  const iw = w - pad.l - pad.r, ih = h - pad.t - pad.b;
+  const max = Math.max(...values, 1) * 1.12;
+  ctx.clearRect(0, 0, w, h);
+  for (let i = 0; i <= 4; i++) {
+    const y = pad.t + ih - (i/4)*ih;
+    ctx.strokeStyle='#1e2535'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(pad.l+iw,y); ctx.stroke();
+    ctx.fillStyle='#556'; ctx.font='11px Segoe UI'; ctx.textAlign='right';
+    ctx.fillText(Math.round((i/4)*max), pad.l-5, y+4);
+  }
+  const slot = iw/labels.length, bw = Math.max(6, slot*0.62);
+  labels.forEach((lbl,i) => {
+    const x = pad.l+i*slot+(slot-bw)/2, bh=(values[i]/max)*ih, y=pad.t+ih-bh;
+    const g = ctx.createLinearGradient(0,y,0,y+bh);
+    g.addColorStop(0,color); g.addColorStop(1,color+'55');
+    ctx.fillStyle=g;
+    ctx.beginPath();
+    if(ctx.roundRect) ctx.roundRect(x,y,bw,bh,4); else ctx.rect(x,y,bw,bh);
+    ctx.fill();
+    ctx.fillStyle='#ccc'; ctx.font='bold 11px Segoe UI'; ctx.textAlign='center';
+    ctx.fillText(values[i], x+bw/2, y-5);
+    ctx.save(); ctx.translate(x+bw/2, pad.t+ih+8); ctx.rotate(-Math.PI/4);
+    ctx.fillStyle='#8899aa'; ctx.font='10px Segoe UI'; ctx.textAlign='right';
+    ctx.fillText(lbl.length>20?lbl.slice(0,19)+'…':lbl, 0, 0);
+    ctx.restore();
+  });
+  ctx.strokeStyle='#2a3040'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(pad.l,pad.t); ctx.lineTo(pad.l,pad.t+ih); ctx.stroke();
+}
+
+/* histogram */
+function drawHist(canvasId, labels, values) {
+  const c = initCanvas(canvasId, 270); if (!c) return;
+  const { ctx, w, h } = c;
+  const pad = { t:24, r:12, b:38, l:44 };
+  const iw = w-pad.l-pad.r, ih = h-pad.t-pad.b;
+  const max = Math.max(...values,1)*1.12;
+  ctx.clearRect(0,0,w,h);
+  for(let i=0;i<=4;i++){
+    const y=pad.t+ih-(i/4)*ih;
+    ctx.strokeStyle='#1e2535'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(pad.l+iw,y); ctx.stroke();
+    ctx.fillStyle='#556'; ctx.font='11px Segoe UI'; ctx.textAlign='right';
+    ctx.fillText(Math.round((i/4)*max),pad.l-5,y+4);
+  }
+  const bw=iw/values.length;
+  values.forEach((v,i)=>{
+    const x=pad.l+i*bw, bh=(v/max)*ih, y=pad.t+ih-bh;
+    const g=ctx.createLinearGradient(0,y,0,y+bh);
+    g.addColorStop(0,'#4ecdc4'); g.addColorStop(1,'#4ecdc433');
+    ctx.fillStyle=g; ctx.fillRect(x+.5,y,bw-1,bh);
+  });
+  [0,Math.floor(labels.length/2),labels.length-1].forEach(i=>{
+    ctx.fillStyle='#8899aa'; ctx.font='10px Segoe UI'; ctx.textAlign='center';
+    ctx.fillText(labels[i], pad.l+i*bw+bw/2, pad.t+ih+16);
+  });
+  ctx.strokeStyle='#2a3040'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(pad.l,pad.t+ih); ctx.lineTo(pad.l+iw,pad.t+ih); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(pad.l,pad.t); ctx.lineTo(pad.l,pad.t+ih); ctx.stroke();
+}
+
+/* SHAP horizontal bar chart */
+function drawShapBars(canvasId, features) {
+  const ROW_H  = 38;
+  const height = features.length * ROW_H + 32;
+  const c = initCanvas(canvasId, height); if (!c) return;
+  const { ctx, w, h } = c;
+  const pad = { t:16, r:16, b:16, l:220 };
+  const iw = w - pad.l - pad.r;
+  const ih = h - pad.t - pad.b;
+  const max = Math.max(...features.map(f=>f.importance), 0.0001);
+  ctx.clearRect(0, 0, w, h);
+
+  features.forEach((f, i) => {
+    const y    = pad.t + i * ROW_H;
+    const barH = ROW_H * 0.52;
+    const barY = y + (ROW_H - barH) / 2;
+    const barW = (f.importance / max) * iw;
+
+    // row background (alternating)
+    if (i % 2 === 0) {
+      ctx.fillStyle = '#ffffff08';
+      ctx.fillRect(0, y, w, ROW_H);
+    }
+
+    // rank badge
+    ctx.fillStyle = '#445';
+    ctx.font = 'bold 10px Segoe UI';
+    ctx.textAlign = 'right';
+    ctx.fillText(`#${i+1}`, 22, barY + barH * 0.72);
+
+    // feature label
+    ctx.fillStyle = '#d0d0d0';
+    ctx.font = '12px Segoe UI';
+    ctx.textAlign = 'left';
+    const labelText = f.label || f.feature;
+    ctx.fillText(labelText.length > 30 ? labelText.slice(0,29)+'…' : labelText,
+                 28, barY + barH * 0.72);
+
+    // gradient bar
+    const g = ctx.createLinearGradient(pad.l, 0, pad.l + barW, 0);
+    g.addColorStop(0, '#e63946');
+    g.addColorStop(1, '#ff8a80');
+    ctx.fillStyle = g;
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(pad.l, barY, barW, barH, 3);
+    else ctx.rect(pad.l, barY, barW, barH);
+    ctx.fill();
+
+    // value label
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 11px Segoe UI';
+    ctx.textAlign = 'left';
+    ctx.fillText(f.importance.toFixed(5), pad.l + barW + 8, barY + barH * 0.72);
+  });
+
+  // vertical divider
+  ctx.strokeStyle = '#2a3040'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(pad.l, pad.t - 8); ctx.lineTo(pad.l, h - pad.b + 8); ctx.stroke();
+}
+
+/* ==============================================================
+   Alert table
+   ============================================================== */
+function scoreClass(v) { return v>=0.7?'score-hi':v>=0.5?'score-mid':''; }
+
+function renderTable() {
+  document.getElementById('alert-tbody').innerHTML = DATA.top20.map((r, i) => {
+    const ens = parseFloat(r.ensemble_score), tier = r.risk_tier;
+    return `<tr>
+      <td class="rank">${i+1}</td>
+      <td class="vendor-id">${r.LIFNR}</td>
+      <td>${r.BUKRS}</td>
+      <td class="mono">${r.BELNR}</td>
+      <td class="amount">${r.DMBTR}</td>
+      <td>${r.AUGDT||'&mdash;'}</td>
+      <td>${r.FRAUD_TYPE||'&mdash;'}</td>
+      <td class="${scoreClass(parseFloat(r.if_score))}">${parseFloat(r.if_score).toFixed(4)}</td>
+      <td>${parseFloat(r.ae_score).toFixed(4)}</td>
+      <td>${parseFloat(r.graph_score).toFixed(2)}</td>
+      <td class="${scoreClass(ens)}">${ens.toFixed(4)}</td>
+      <td><span class="tier-${tier}">${tier}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+/* ==============================================================
+   SHAP cards (explanations)
+   ============================================================== */
+function renderShapCards() {
+  document.getElementById('shap-cards').innerHTML = DATA.shap_features.map((f, i) => `
+    <div class="shap-card">
+      <div class="shap-card-rank">#${i+1} Feature</div>
+      <div class="shap-card-label">${f.label || f.feature}</div>
+      <div class="shap-card-badge">SHAP ${f.importance.toFixed(5)}</div>
+      <div class="shap-card-desc">${f.description || ''}</div>
+      <div class="shap-card-sap">Campo SAP: ${f.feature}</div>
+    </div>`).join('');
+}
+
+/* ==============================================================
+   Boot
+   ============================================================== */
+function render() {
+  drawBars('cFraud', DATA.ft_labels, DATA.ft_values, '#e63946');
+  drawHist('cHist',  DATA.hist_labels, DATA.hist_values);
+  drawShapBars('cShap', DATA.shap_features);
+  renderTable();
+  renderShapCards();
+}
+
+render();
+window.addEventListener('resize', render);
+</script>
+</body>
+</html>

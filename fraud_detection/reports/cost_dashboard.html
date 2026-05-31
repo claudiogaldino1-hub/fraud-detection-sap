@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>SAP P2P — Cost Monitoring Dashboard</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Arial,sans-serif;background:#0a0d14;color:#e0e0e0;min-height:100vh}
+header{background:linear-gradient(135deg,#0f1520 0%,#111827 100%);
+  padding:22px 32px;border-bottom:2px solid #2ec4b6}
+header h1{font-size:1.45rem;color:#fff;letter-spacing:.3px}
+header p{font-size:.82rem;color:#8899aa;margin-top:4px}
+.badge{display:inline-block;padding:2px 9px;border-radius:10px;
+  font-size:.7rem;font-weight:700;margin-left:8px;vertical-align:middle}
+.badge-cost{background:#2ec4b622;color:#2ec4b6;border:1px solid #2ec4b644}
+main{padding:26px 32px;max-width:1400px;margin:0 auto}
+section{margin-bottom:30px}
+h2.st{font-size:.78rem;color:#8899aa;text-transform:uppercase;letter-spacing:1.2px;
+  margin-bottom:14px;padding-bottom:5px;border-bottom:1px solid #1e2535}
+/* alert banner */
+.alert-banner{border-radius:10px;padding:14px 20px;margin-bottom:26px;
+  display:flex;align-items:center;gap:12px;border:1px solid}
+.alert-icon{font-size:1.4rem;line-height:1}
+.alert-text{font-size:.88rem;line-height:1.5}
+.alert-level{font-weight:700;font-size:.9rem}
+/* KPIs */
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:14px}
+.kpi{background:#111827;border:1px solid #1e2535;border-radius:10px;
+  padding:18px 16px;position:relative;overflow:hidden}
+.kpi::before{content:'';position:absolute;top:0;left:0;right:0;
+  height:3px;background:var(--ac,#2ec4b6)}
+.kpi-val{font-size:1.65rem;font-weight:700;color:#fff;line-height:1.15;
+  font-variant-numeric:tabular-nums}
+.kpi-lbl{font-size:.7rem;color:#8899aa;margin-top:5px;
+  text-transform:uppercase;letter-spacing:.5px}
+.kpi-sub{font-size:.68rem;color:#445;margin-top:3px}
+/* panels */
+.panel{background:#111827;border:1px solid #1e2535;border-radius:10px;padding:20px}
+.panel h3{font-size:.77rem;color:#8899aa;text-transform:uppercase;
+  letter-spacing:.8px;margin-bottom:14px}
+/* two-col */
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+/* projection cards */
+.proj-row{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+.proj-card{background:#111827;border:1px solid #1e2535;border-radius:10px;padding:18px}
+.proj-val{font-size:1.5rem;font-weight:700;line-height:1.1}
+.proj-lbl{font-size:.72rem;color:#8899aa;margin-top:6px;text-transform:uppercase;letter-spacing:.4px}
+.proj-note{font-size:.7rem;color:#445;margin-top:6px;line-height:1.4}
+/* table */
+.tbl-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:.79rem}
+th{background:#0a0d14;color:#8899aa;font-size:.7rem;text-transform:uppercase;
+  letter-spacing:.4px;padding:9px 12px;text-align:left;border-bottom:1px solid #1e2535;
+  white-space:nowrap}
+td{padding:8px 12px;border-bottom:1px solid #141a24;color:#ccc;white-space:nowrap}
+tr:hover td{background:#1a2030}
+tr:last-child td{border-bottom:none}
+.synth{color:#445;font-style:italic}
+canvas{display:block;max-width:100%}
+footer{text-align:center;padding:16px;color:#2a3040;font-size:.7rem;
+  border-top:1px solid #1e2535;margin-top:8px}
+@media(max-width:800px){.two-col,.proj-row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>&#x1F4B8; SAP P2P &mdash; Cost Monitoring Dashboard
+    <span class="badge badge-cost">FinOps</span>
+  </h1>
+  <p id="hdr-sub"></p>
+</header>
+
+<main>
+
+<!-- Alert banner -->
+<div class="alert-banner" id="alert-banner">
+  <div class="alert-icon" id="alert-icon"></div>
+  <div class="alert-text">
+    <div class="alert-level" id="alert-level"></div>
+    <div id="alert-msg"></div>
+  </div>
+</div>
+
+<!-- KPIs -->
+<section>
+  <h2 class="st">Run Atual — Pipeline <span id="kpi-pid"></span></h2>
+  <div class="kpi-row">
+    <div class="kpi" style="--ac:#2ec4b6">
+      <div class="kpi-val" id="k-total"></div>
+      <div class="kpi-lbl">Custo Total Estimado</div>
+      <div class="kpi-sub">USD</div>
+    </div>
+    <div class="kpi" style="--ac:#4ecdc4">
+      <div class="kpi-val" id="k-compute"></div>
+      <div class="kpi-lbl">Processamento</div>
+      <div class="kpi-sub" id="k-compute-sub"></div>
+    </div>
+    <div class="kpi" style="--ac:#457b9d">
+      <div class="kpi-val" id="k-storage"></div>
+      <div class="kpi-lbl">Armazenamento</div>
+      <div class="kpi-sub" id="k-storage-sub"></div>
+    </div>
+    <div class="kpi" style="--ac:#6a4c93">
+      <div class="kpi-val" id="k-claude"></div>
+      <div class="kpi-lbl">Claude API</div>
+      <div class="kpi-sub" id="k-claude-sub"></div>
+    </div>
+    <div class="kpi" style="--ac:#f4a261">
+      <div class="kpi-val" id="k-sec"></div>
+      <div class="kpi-lbl">Tempo de Execucao</div>
+      <div class="kpi-sub">segundos</div>
+    </div>
+    <div class="kpi" style="--ac:#a8dadc">
+      <div class="kpi-val" id="k-mb"></div>
+      <div class="kpi-lbl">Artefatos em Disco</div>
+      <div class="kpi-sub">MB total</div>
+    </div>
+    <div class="kpi" style="--ac:#ff6b6b">
+      <div class="kpi-val" id="k-narr"></div>
+      <div class="kpi-lbl">Narrativas Geradas</div>
+      <div class="kpi-sub" id="k-narr-sub"></div>
+    </div>
+    <div class="kpi" style="--ac:#ffd166">
+      <div class="kpi-val" id="k-tokens"></div>
+      <div class="kpi-lbl">Tokens Consumidos</div>
+      <div class="kpi-sub" id="k-model-sub"></div>
+    </div>
+  </div>
+</section>
+
+<!-- Line chart — history -->
+<section>
+  <h2 class="st">Historico de Custo por Run</h2>
+  <div class="panel">
+    <h3>Custo total (USD) por run</h3>
+    <div id="synth-notice" style="display:none;margin-bottom:14px;padding:10px 14px;
+      border-radius:8px;background:#f4a26111;border:1px solid #f4a26144;font-size:.8rem;
+      color:#f4a261;line-height:1.55">
+      <strong>&#9888; Dados simulados para fins de visualizacao:</strong>
+      os runs com fundo hachurado foram gerados artificialmente porque o historico
+      real possui apenas <span id="real-run-count"></span> run(s). Eles ilustram como o
+      grafico se comportaria com mais execucoes reais, mas <strong>nao representam
+      custos reais</strong>. Conforme o pipeline for executado, os runs reais
+      substituirao progressivamente os simulados.
+    </div>
+    <div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:12px;font-size:.75rem;color:#8899aa">
+      <span><span style="display:inline-block;width:24px;height:3px;background:#2ec4b6;
+        vertical-align:middle;margin-right:5px;border-radius:2px"></span>Run real</span>
+      <span><span style="display:inline-block;width:24px;height:3px;
+        border-top:2px dashed #556;vertical-align:middle;margin-right:5px"></span>Simulado</span>
+      <span><span style="display:inline-block;width:10px;height:10px;border-radius:50%;
+        background:#a78bfa;vertical-align:middle;margin-right:5px"></span>Com narrativas Claude</span>
+      <span><span style="display:inline-block;width:24px;height:10px;
+        background:repeating-linear-gradient(45deg,#f4a26108 0,#f4a26108 3px,transparent 3px,transparent 8px);
+        vertical-align:middle;margin-right:5px;border-radius:2px"></span>Regiao simulada</span>
+    </div>
+    <canvas id="cLine"></canvas>
+  </div>
+</section>
+
+<!-- Breakdown charts -->
+<section>
+  <h2 class="st">Breakdown de Custo — Run Atual</h2>
+  <div class="two-col">
+    <div class="panel">
+      <h3>Por Dimensao (USD)</h3>
+      <canvas id="cDim"></canvas>
+    </div>
+    <div class="panel">
+      <h3>Tempo por Etapa do Pipeline (s)</h3>
+      <canvas id="cSteps"></canvas>
+    </div>
+  </div>
+</section>
+
+<!-- Storage breakdown -->
+<section>
+  <h2 class="st">Armazenamento — Breakdown por Artefato</h2>
+  <div class="panel">
+    <h3>Tamanho em MB e custo mensal S3 por item</h3>
+    <canvas id="cStorage"></canvas>
+  </div>
+</section>
+
+<!-- Projections -->
+<section>
+  <h2 class="st">Projecao Mensal — 100 Runs</h2>
+  <div class="proj-row">
+    <div class="proj-card" style="border-color:#2ec4b644">
+      <div class="proj-val" style="color:#2ec4b6" id="p-base"></div>
+      <div class="proj-lbl">Sem Narrativas</div>
+      <div class="proj-note">100 runs × custo de compute<br>+ armazenamento mensal S3</div>
+    </div>
+    <div class="proj-card" style="border-color:#6a4c9344">
+      <div class="proj-val" style="color:#a78bfa" id="p-narr"></div>
+      <div class="proj-lbl">Com Narrativas (20/run)</div>
+      <div class="proj-note" id="p-narr-note"></div>
+    </div>
+    <div class="proj-card" style="border-color:#f4a26144">
+      <div class="proj-val" style="color:#f4a261" id="p-delta"></div>
+      <div class="proj-lbl">Custo Adicional (Claude API)</div>
+      <div class="proj-note">20 narrativas × 100 runs<br>Preco: $3/1M input · $15/1M output</div>
+    </div>
+  </div>
+</section>
+
+<!-- History table -->
+<section>
+  <h2 class="st">Historico Detalhado de Runs</h2>
+  <div class="panel">
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th><th>Pipeline ID</th><th>Data</th>
+            <th>Custo Total (USD)</th><th>Compute (s)</th>
+            <th>Storage (MB)</th><th>Narrativas</th><th>Tokens</th><th>Tipo</th>
+          </tr>
+        </thead>
+        <tbody id="hist-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+</main>
+<footer>SAP P2P Fraud Detection &mdash; FinOps Dashboard &mdash; <span id="footer-ts"></span></footer>
+
+<script>
+/* =============================================================
+   DATA — embutido inline
+   ============================================================= */
+const D = {"pipeline_id": "3ce6f16b", "generated_at": "2026-05-31T14:12:53.483741+00:00", "platform": "Windows-11-10.0.26200-SP0", "python_version": "3.12.10", "total_usd": 0.000263, "compute_usd": 8.6e-05, "storage_usd": 0.000177, "claude_usd": 0.0, "compute_sec": 3.609, "storage_mb": 7.901, "narratives": 0, "total_tokens": 0, "model": "claude-sonnet-4-5", "steps": [{"step": "Gerar/carregar dados SAP", "seconds": 0.603, "aws_usd": 1.4e-05}, {"step": "Injecao de fraudes", "seconds": 0.108, "aws_usd": 3e-06}, {"step": "Treinamento do ensemble", "seconds": 2.292, "aws_usd": 5.4e-05}, {"step": "Inferencia ensemble", "seconds": 0.072, "aws_usd": 2e-06}, {"step": "SHAP (explicabilidade)", "seconds": 0.502, "aws_usd": 1.2e-05}, {"step": "Baseline de data drift", "seconds": 0.027, "aws_usd": 1e-06}, {"step": "Persistir alertas em Parquet", "seconds": 0.005, "aws_usd": 0.0}], "storage_items": [{"label": "Parquets \u2014 dados SAP brutos", "mb": 1.048, "aws_usd": 2.4e-05}, {"label": "Parquets \u2014 alertas processados", "mb": 0.0655, "aws_usd": 1e-06}, {"label": "Modelos treinados (.pkl)", "mb": 6.4136, "aws_usd": 0.000144}, {"label": "Log de auditoria (JSON)", "mb": 0.0052, "aws_usd": 0.0}, {"label": "Versoes de modelos (JSON)", "mb": 0.0029, "aws_usd": 0.0}, {"label": "Baseline de drift (JSON)", "mb": 0.2794, "aws_usd": 6e-06}, {"label": "Dashboard HTML", "mb": 0.0255, "aws_usd": 1e-06}, {"label": "Relatorio Excel", "mb": 0.0613, "aws_usd": 1e-06}], "history": [{"id": "sim_0000", "date": "2026-05-02", "total_usd": 0.000259, "compute_sec": 3.32, "narratives": 0, "tokens": 0, "synthetic": true}, {"id": "sim_0001", "date": "2026-05-03", "total_usd": 0.000295, "compute_sec": 3.72, "narratives": 0, "tokens": 0, "synthetic": true}, {"id": "sim_0002", "date": "2026-05-04", "total_usd": 0.000256, "compute_sec": 3.34, "narratives": 0, "tokens": 0, "synthetic": true}, {"id": "sim_0003", "date": "2026-05-05", "total_usd": 0.000268, "compute_sec": 4.42, "narratives": 0, "tokens": 0, "synthetic": true}, {"id": "sim_0004", "date": "2026-05-06", "total_usd": 0.293185, "compute_sec": 3.67, "narratives": 20, "tokens": 26040, "synthetic": true}, {"id": "sim_0005", "date": "2026-05-07", "total_usd": 0.000268, "compute_sec": 4.45, "narratives": 0, "tokens": 0, "synthetic": true}, {"id": "sim_0006", "date": "2026-05-08", "total_usd": 0.000309, "compute_sec": 4.69, "narratives": 0, "tokens": 0, "synthetic": true}, {"id": "sim_0007", "date": "2026-05-09", "total_usd": 0.000312, "compute_sec": 4.41, "narratives": 0, "tokens": 0, "synthetic": true}, {"id": "sim_0008", "date": "2026-05-10", "total_usd": 0.000334, "compute_sec": 3.69, "narratives": 0, "tokens": 0, "synthetic": true}, {"id": "sim_0009", "date": "2026-05-11", "total_usd": 0.285938, "compute_sec": 3.71, "narratives": 20, "tokens": 25540, "synthetic": true}, {"id": "sim_0010", "date": "2026-05-12", "total_usd": 0.000308, "compute_sec": 4.67, "narratives": 0, "tokens": 0, "synthetic": true}, {"id": "sim_0011", "date": "2026-05-13", "total_usd": 0.000308, "compute_sec": 3.89, "narratives": 0, "tokens": 0, "synthetic": true}, {"id": "sim_0012", "date": "2026-05-14", "total_usd": 0.000282, "compute_sec": 3.81, "narratives": 0, "tokens": 0, "synthetic": true}, {"id": "sim_0013", "date": "2026-05-15", "total_usd": 0.000347, "compute_sec": 4.64, "narratives": 0, "tokens": 0, "synthetic": true}, {"id": "sim_0014", "date": "2026-05-16", "total_usd": 0.245611, "compute_sec": 3.83, "narratives": 20, "tokens": 22960, "synthetic": true}, {"id": "sim_0015", "date": "2026-05-17", "total_usd": 0.000294, "compute_sec": 3.81, "narratives": 0, "tokens": 0, "synthetic": true}, {"id": "sim_0016", "date": "2026-05-18", "total_usd": 0.000294, "compute_sec": 3.7, "narratives": 0, "tokens": 0, "synthetic": true}, {"id": "sim_0017", "date": "2026-05-19", "total_usd": 0.000329, "compute_sec": 4.68, "narratives": 0, "tokens": 0, "synthetic": true}, {"id": "sim_0018", "date": "2026-05-20", "total_usd": 0.0003, "compute_sec": 4.99, "narratives": 0, "tokens": 0, "synthetic": true}, {"id": "sim_0019", "date": "2026-05-21", "total_usd": 0.244091, "compute_sec": 4.1, "narratives": 20, "tokens": 23020, "synthetic": true}, {"id": "sim_0020", "date": "2026-05-22", "total_usd": 0.000294, "compute_sec": 5.16, "narratives": 0, "tokens": 0, "synthetic": true}, {"id": "sim_0021", "date": "2026-05-23", "total_usd": 0.000301, "compute_sec": 3.96, "narratives": 0, "tokens": 0, "synthetic": true}, {"id": "sim_0022", "date": "2026-05-24", "total_usd": 0.000321, "compute_sec": 4.89, "narratives": 0, "tokens": 0, "synthetic": true}, {"id": "sim_0023", "date": "2026-05-25", "total_usd": 0.000294, "compute_sec": 3.71, "narratives": 0, "tokens": 0, "synthetic": true}, {"id": "sim_0024", "date": "2026-05-26", "total_usd": 0.241966, "compute_sec": 5.82, "narratives": 20, "tokens": 23180, "synthetic": true}, {"id": "sim_0025", "date": "2026-05-27", "total_usd": 0.000313, "compute_sec": 4.25, "narratives": 0, "tokens": 0, "synthetic": true}, {"id": "sim_0026", "date": "2026-05-28", "total_usd": 0.000318, "compute_sec": 5.35, "narratives": 0, "tokens": 0, "synthetic": true}, {"id": "sim_0027", "date": "2026-05-29", "total_usd": 0.000347, "compute_sec": 5.78, "narratives": 0, "tokens": 0, "synthetic": true}, {"id": "sim_0028", "date": "2026-05-30", "total_usd": 0.000303, "compute_sec": 5.02, "narratives": 0, "tokens": 0, "synthetic": true}, {"id": "sim_0029", "date": "2026-05-31", "total_usd": 0.250936, "compute_sec": 3.92, "narratives": 20, "tokens": 22900, "synthetic": true}, {"id": "3ce6f16b", "date": "2026-05-31", "total_usd": 0.000263, "compute_sec": 3.609, "narratives": 0, "tokens": 0, "synthetic": false}], "proj_runs": 100, "proj_no_narratives": 0.008777, "proj_with_narratives": 26.528777, "cost_per_narrative": 0.01326, "alert_level": "OK", "alert_color": "#2ec4b6", "alert_msg": "Custo do run atual ($0.000263) est\u00e1 dentro dos thresholds definidos (warning: $0.05 / critical: $0.2).", "threshold_warning": 0.05, "threshold_critical": 0.2};
+
+/* =============================================================
+   UTILS
+   ============================================================= */
+const $ = id => document.getElementById(id);
+const fmt6  = v => '$ ' + Number(v).toFixed(6);
+const fmt4  = v => '$ ' + Number(v).toFixed(4);
+const fmtN  = v => Number(v).toLocaleString('pt-BR');
+
+function initCanvas(id, h) {
+  const c = $(id);
+  if (!c) return null;
+  const ratio = window.devicePixelRatio || 1;
+  const w = c.parentElement.clientWidth - 40;
+  c.width  = w * ratio; c.height = h * ratio;
+  c.style.width = w+'px'; c.style.height = h+'px';
+  const ctx = c.getContext('2d');
+  ctx.scale(ratio, ratio);
+  return {ctx, w, h};
+}
+
+function grid(ctx, x0, y0, iw, ih, steps, max) {
+  for (let i = 0; i <= steps; i++) {
+    const y = y0 + ih - (i/steps)*ih;
+    ctx.strokeStyle='#1e2535'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(x0,y); ctx.lineTo(x0+iw,y); ctx.stroke();
+    ctx.fillStyle='#445'; ctx.font='10px Segoe UI'; ctx.textAlign='right';
+    ctx.fillText(fmtSci(max*i/steps), x0-5, y+4);
+  }
+}
+
+function fmtSci(v) {
+  if (v === 0) return '0';
+  if (v < 0.0001) return v.toExponential(1);
+  if (v < 0.01)   return v.toFixed(6);
+  if (v < 1)      return v.toFixed(4);
+  return v.toFixed(2);
+}
+
+const COLORS = ['#2ec4b6','#e63946','#f4a261','#4ecdc4','#a78bfa','#ffd166','#ff6b6b','#457b9d'];
+
+/* =============================================================
+   KPIs
+   ============================================================= */
+$('hdr-sub').textContent = `Pipeline ${D.pipeline_id} | Gerado em: ${D.generated_at.substring(0,19).replace('T',' ')} | ${D.platform.split('-')[0]}`;
+$('footer-ts').textContent = D.generated_at.substring(0,19).replace('T',' ');
+$('kpi-pid').textContent  = D.pipeline_id;
+
+$('k-total').textContent   = fmt6(D.total_usd);
+$('k-compute').textContent = fmt6(D.compute_usd);
+$('k-compute-sub').textContent = `${D.compute_sec.toFixed(2)}s · AWS c6i.large`;
+$('k-storage').textContent = fmt6(D.storage_usd);
+$('k-storage-sub').textContent = `${D.storage_mb.toFixed(2)} MB · mensal S3`;
+$('k-claude').textContent  = fmt6(D.claude_usd);
+$('k-claude-sub').textContent  = D.narratives > 0
+  ? `${D.narratives} narrativas · ${fmtN(D.total_tokens)} tokens`
+  : 'Sem narrativas neste run';
+$('k-sec').textContent     = D.compute_sec.toFixed(3);
+$('k-mb').textContent      = D.storage_mb.toFixed(2);
+$('k-narr').textContent    = D.narratives;
+$('k-narr-sub').textContent = D.narratives > 0
+  ? `$ ${(D.claude_usd / Math.max(D.narratives,1)).toFixed(6)}/narrativa`
+  : 'use generate_narratives=True';
+$('k-tokens').textContent  = fmtN(D.total_tokens);
+$('k-model-sub').textContent = D.model;
+
+/* =============================================================
+   ALERT BANNER
+   ============================================================= */
+const banner = $('alert-banner');
+banner.style.background = D.alert_color + '11';
+banner.style.borderColor = D.alert_color + '55';
+$('alert-icon').textContent = D.alert_level === 'OK' ? '✅' : D.alert_level === 'WARNING' ? '⚠️' : '🚨';
+$('alert-level').style.color = D.alert_color;
+$('alert-level').textContent = D.alert_level === 'OK'
+  ? 'DENTRO DO LIMITE'
+  : D.alert_level === 'WARNING' ? 'ATENCAO — Threshold de aviso atingido'
+  : 'CRITICO — Threshold crítico ultrapassado';
+$('alert-msg').textContent = D.alert_msg;
+
+/* =============================================================
+   LINE CHART — history
+   ============================================================= */
+function drawLine() {
+  const c = initCanvas('cLine', 260); if (!c) return;
+  const {ctx, w, h} = c;
+  const pad = {t:20, r:20, b:36, l:64};
+  const iw = w-pad.l-pad.r, ih = h-pad.t-pad.b;
+  const vals = D.history.map(r => r.total_usd);
+  const max  = Math.max(...vals, D.threshold_critical) * 1.15 || 0.001;
+  const n    = D.history.length;
+  ctx.clearRect(0,0,w,h);
+
+  // show/hide notice banner and set real run count
+  const realCount = D.history.filter(r => !r.synthetic).length;
+  const hasSynth  = D.history.some(r => r.synthetic);
+  const notice    = document.getElementById('synth-notice');
+  if (notice) {
+    notice.style.display = hasSynth ? 'block' : 'none';
+    const span = document.getElementById('real-run-count');
+    if (span) span.textContent = realCount;
+  }
+
+  // hatched background over synthetic region
+  if (hasSynth && n > 1) {
+    // find first real index
+    const firstReal = D.history.findIndex(r => !r.synthetic);
+    const xSynthEnd = firstReal > 0
+      ? pad.l + ((firstReal-1) / Math.max(n-1,1)) * iw
+      : pad.l + iw;
+
+    // draw hatch pattern in synthetic zone
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(pad.l, pad.t, xSynthEnd - pad.l, ih);
+    ctx.clip();
+    ctx.strokeStyle = '#f4a26118';
+    ctx.lineWidth   = 1;
+    for (let x = pad.l - ih; x < xSynthEnd + ih; x += 9) {
+      ctx.beginPath();
+      ctx.moveTo(x, pad.t + ih);
+      ctx.lineTo(x + ih, pad.t);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // subtle border between synthetic and real zones
+    if (firstReal > 0) {
+      const xDiv = pad.l + (firstReal / Math.max(n-1,1)) * iw;
+      ctx.strokeStyle = '#f4a26166';
+      ctx.lineWidth   = 1.5;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath();
+      ctx.moveTo(xDiv, pad.t - 8);
+      ctx.lineTo(xDiv, pad.t + ih + 4);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#f4a261aa';
+      ctx.font = 'bold 8px Segoe UI';
+      ctx.textAlign = 'center';
+      ctx.fillText('REAL ▶', xDiv + 18, pad.t + 8);
+    }
+
+    // "SIMULADO" watermark in hatch zone
+    ctx.save();
+    ctx.globalAlpha = 0.18;
+    ctx.fillStyle   = '#f4a261';
+    ctx.font        = 'bold 13px Segoe UI';
+    ctx.textAlign   = 'center';
+    ctx.fillText('SIMULADO', pad.l + (xSynthEnd - pad.l) / 2, pad.t + ih / 2);
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+
+  // grid
+  grid(ctx, pad.l, pad.t, iw, ih, 4, max);
+
+  // threshold lines
+  const thresholds = [
+    {v: D.threshold_warning,  color: '#f4a261', label: 'warning'},
+    {v: D.threshold_critical, color: '#e63946', label: 'critical'},
+  ];
+  thresholds.forEach(th => {
+    const y = pad.t + ih - (th.v/max)*ih;
+    ctx.strokeStyle = th.color+'88'; ctx.lineWidth=1;
+    ctx.setLineDash([4,4]);
+    ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(pad.l+iw,y); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = th.color; ctx.font='9px Segoe UI'; ctx.textAlign='left';
+    ctx.fillText(th.label+' $'+th.v, pad.l+4, y-3);
+  });
+
+  // area fill — real runs only
+  const realRuns = D.history.map((r,i)=>({...r,i})).filter(r=>!r.synthetic);
+  if (realRuns.length > 1) {
+    ctx.beginPath();
+    realRuns.forEach((r,j) => {
+      const x = pad.l + (r.i/Math.max(n-1,1))*iw;
+      const y = pad.t + ih - (r.total_usd/max)*ih;
+      j===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
+    });
+    const lastX = pad.l + (realRuns[realRuns.length-1].i/Math.max(n-1,1))*iw;
+    const firstX = pad.l + (realRuns[0].i/Math.max(n-1,1))*iw;
+    ctx.lineTo(lastX, pad.t+ih); ctx.lineTo(firstX, pad.t+ih); ctx.closePath();
+    const grad = ctx.createLinearGradient(0, pad.t, 0, pad.t+ih);
+    grad.addColorStop(0,'#2ec4b644'); grad.addColorStop(1,'#2ec4b608');
+    ctx.fillStyle = grad; ctx.fill();
+  }
+
+  // line segments
+  for (let i = 1; i < n; i++) {
+    const x0 = pad.l + ((i-1)/Math.max(n-1,1))*iw;
+    const y0 = pad.t + ih - (D.history[i-1].total_usd/max)*ih;
+    const x1 = pad.l + (i/Math.max(n-1,1))*iw;
+    const y1 = pad.t + ih - (D.history[i].total_usd/max)*ih;
+    const isSynth = D.history[i].synthetic || D.history[i-1].synthetic;
+    ctx.strokeStyle = isSynth ? '#55666688' : '#2ec4b6';
+    ctx.lineWidth   = isSynth ? 1 : 2.5;
+    ctx.setLineDash(isSynth ? [4, 4] : []);
+    ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x1,y1); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // dots
+  D.history.forEach((r,i) => {
+    const x = pad.l + (i/Math.max(n-1,1))*iw;
+    const y = pad.t + ih - (r.total_usd/max)*ih;
+    if (r.synthetic) {
+      // small muted dot
+      ctx.beginPath(); ctx.arc(x, y, 2, 0, Math.PI*2);
+      ctx.fillStyle = '#44556644'; ctx.fill();
+    } else {
+      // prominent real dot with ring
+      ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI*2);
+      ctx.fillStyle = '#0a0d14'; ctx.fill();
+      ctx.beginPath(); ctx.arc(x, y, 5, 0, Math.PI*2);
+      ctx.strokeStyle = r.narratives>0 ? '#a78bfa' : '#2ec4b6';
+      ctx.lineWidth = 2; ctx.stroke();
+      ctx.beginPath(); ctx.arc(x, y, 2.5, 0, Math.PI*2);
+      ctx.fillStyle = r.narratives>0 ? '#a78bfa' : '#2ec4b6'; ctx.fill();
+      // label above
+      ctx.fillStyle = r.narratives>0 ? '#a78bfa' : '#2ec4b6';
+      ctx.font = 'bold 9px Segoe UI'; ctx.textAlign = 'center';
+      ctx.fillText(r.narratives>0 ? 'N'+r.narratives : 'real', x, y-10);
+    }
+  });
+
+  // x-axis labels (every 5th)
+  ctx.fillStyle='#556'; ctx.font='9px Segoe UI'; ctx.textAlign='center';
+  D.history.forEach((r,i) => {
+    if (i % 5 !== 0 && i !== n-1) return;
+    const x = pad.l + (i/Math.max(n-1,1))*iw;
+    ctx.fillText(r.date.slice(5), x, pad.t+ih+14);
+  });
+
+  // y-axis
+  ctx.strokeStyle='#1e2535'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(pad.l,pad.t); ctx.lineTo(pad.l,pad.t+ih); ctx.stroke();
+}
+
+/* =============================================================
+   BAR — dimension breakdown
+   ============================================================= */
+function drawDim() {
+  const labels = ['Processamento\n(AWS EC2)', 'Armazenamento\n(S3/mês)', 'Claude API\n(tokens)'];
+  const vals   = [D.compute_usd, D.storage_usd, D.claude_usd];
+  const colors = ['#4ecdc4','#457b9d','#a78bfa'];
+  const c = initCanvas('cDim', 220); if (!c) return;
+  const {ctx, w, h} = c;
+  const pad = {t:20, r:16, b:70, l:68};
+  const iw = w-pad.l-pad.r, ih = h-pad.t-pad.b;
+  const max = Math.max(...vals, 1e-9) * 1.2;
+  ctx.clearRect(0,0,w,h);
+  grid(ctx, pad.l, pad.t, iw, ih, 4, max);
+
+  const slot = iw/3, bw = slot*0.55;
+  labels.forEach((lbl, i) => {
+    const x  = pad.l + i*slot + (slot-bw)/2;
+    const bh = Math.max((vals[i]/max)*ih, 2);
+    const y  = pad.t+ih-bh;
+    const g  = ctx.createLinearGradient(0,y,0,y+bh);
+    g.addColorStop(0, colors[i]); g.addColorStop(1, colors[i]+'44');
+    ctx.fillStyle=g;
+    if(ctx.roundRect) ctx.roundRect(x,y,bw,bh,4); else ctx.rect(x,y,bw,bh);
+    ctx.fill();
+    ctx.fillStyle='#ccc'; ctx.font='bold 10px Segoe UI'; ctx.textAlign='center';
+    ctx.fillText(fmtSci(vals[i]), x+bw/2, y-5);
+    lbl.split('\n').forEach((line, li) => {
+      ctx.fillStyle='#8899aa'; ctx.font='10px Segoe UI';
+      ctx.fillText(line, x+bw/2, pad.t+ih+14+li*13);
+    });
+  });
+  ctx.strokeStyle='#1e2535'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(pad.l,pad.t); ctx.lineTo(pad.l,pad.t+ih); ctx.stroke();
+}
+
+/* =============================================================
+   BAR — compute steps
+   ============================================================= */
+function drawSteps() {
+  const labels = D.steps.map(s => s.step.length>18 ? s.step.slice(0,17)+'…' : s.step);
+  const vals   = D.steps.map(s => s.seconds);
+  const c = initCanvas('cSteps', 220); if (!c) return;
+  const {ctx, w, h} = c;
+  const pad = {t:20, r:16, b:70, l:42};
+  const iw = w-pad.l-pad.r, ih = h-pad.t-pad.b;
+  const max = Math.max(...vals, 0.001) * 1.2;
+  ctx.clearRect(0,0,w,h);
+
+  for(let i=0;i<=4;i++){
+    const y=pad.t+ih-(i/4)*ih;
+    ctx.strokeStyle='#1e2535'; ctx.lineWidth=1;
+    ctx.beginPath(); ctx.moveTo(pad.l,y); ctx.lineTo(pad.l+iw,y); ctx.stroke();
+    ctx.fillStyle='#445'; ctx.font='10px Segoe UI'; ctx.textAlign='right';
+    ctx.fillText((max*i/4).toFixed(2)+'s', pad.l-3, y+4);
+  }
+
+  const slot = iw/labels.length, bw = slot*0.6;
+  labels.forEach((lbl, i) => {
+    const x  = pad.l + i*slot + (slot-bw)/2;
+    const bh = Math.max((vals[i]/max)*ih, 2);
+    const y  = pad.t+ih-bh;
+    const g  = ctx.createLinearGradient(0,y,0,y+bh);
+    g.addColorStop(0,'#e63946'); g.addColorStop(1,'#e6394433');
+    ctx.fillStyle=g;
+    if(ctx.roundRect) ctx.roundRect(x,y,bw,bh,4); else ctx.rect(x,y,bw,bh);
+    ctx.fill();
+    ctx.fillStyle='#ccc'; ctx.font='bold 9px Segoe UI'; ctx.textAlign='center';
+    ctx.fillText(vals[i].toFixed(3)+'s', x+bw/2, y-4);
+    ctx.save(); ctx.translate(x+bw/2, pad.t+ih+8);
+    ctx.rotate(-Math.PI/4);
+    ctx.fillStyle='#8899aa'; ctx.font='9px Segoe UI'; ctx.textAlign='right';
+    ctx.fillText(lbl, 0, 0);
+    ctx.restore();
+  });
+  ctx.strokeStyle='#1e2535'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(pad.l,pad.t); ctx.lineTo(pad.l,pad.t+ih); ctx.stroke();
+}
+
+/* =============================================================
+   HORIZONTAL BAR — storage items
+   ============================================================= */
+function drawStorage() {
+  const items  = D.storage_items;
+  const ROW_H  = 34;
+  const height = items.length * ROW_H + 24;
+  const c = initCanvas('cStorage', height); if (!c) return;
+  const {ctx, w, h} = c;
+  const pad = {t:12, r:90, b:12, l:230};
+  const iw = w-pad.l-pad.r;
+  const maxMb = Math.max(...items.map(it=>it.mb), 0.001);
+  ctx.clearRect(0,0,w,h);
+
+  items.forEach((it,i) => {
+    const y = pad.t + i*ROW_H;
+    const bh = ROW_H*0.48, by = y+(ROW_H-bh)/2;
+    const bw = (it.mb/maxMb)*iw;
+
+    if(i%2===0){ctx.fillStyle='#ffffff06';ctx.fillRect(0,y,w,ROW_H);}
+
+    // label
+    ctx.fillStyle='#b0b8c8'; ctx.font='11px Segoe UI'; ctx.textAlign='right';
+    const short = it.label.length>34 ? it.label.slice(0,33)+'…' : it.label;
+    ctx.fillText(short, pad.l-8, by+bh*0.72);
+
+    // bar
+    const g=ctx.createLinearGradient(pad.l,0,pad.l+bw,0);
+    g.addColorStop(0,'#457b9d'); g.addColorStop(1,'#4ecdc4');
+    ctx.fillStyle=g;
+    if(ctx.roundRect) ctx.roundRect(pad.l, by, Math.max(bw,2), bh, 3);
+    else ctx.rect(pad.l, by, Math.max(bw,2), bh);
+    ctx.fill();
+
+    // size label
+    ctx.fillStyle='#e0e0e0'; ctx.font='bold 10px Segoe UI'; ctx.textAlign='left';
+    ctx.fillText(`${it.mb.toFixed(2)} MB`, pad.l+bw+6, by+bh*0.72);
+
+    // s3 cost
+    ctx.fillStyle='#445'; ctx.font='9px Segoe UI';
+    ctx.fillText(`S3: $${it.aws_usd.toFixed(6)}`, w-pad.r+2, by+bh*0.72);
+  });
+
+  ctx.strokeStyle='#1e2535'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(pad.l,pad.t-4); ctx.lineTo(pad.l,h-pad.b+4); ctx.stroke();
+}
+
+/* =============================================================
+   PROJECTIONS
+   ============================================================= */
+$('p-base').textContent  = fmt4(D.proj_no_narratives);
+$('p-narr').textContent  = fmt4(D.proj_with_narratives);
+$('p-delta').textContent = fmt4(D.proj_with_narratives - D.proj_no_narratives);
+$('p-narr-note').textContent =
+  `100 runs × 20 narrativas × ~$${D.cost_per_narrative.toFixed(6)}/narrativa\n+ compute + S3`;
+
+/* =============================================================
+   HISTORY TABLE
+   ============================================================= */
+function renderHistTable() {
+  const tbody = $('hist-tbody');
+  const rows  = [...D.history].reverse();   // newest first
+  tbody.innerHTML = rows.map((r,i) => {
+    const isSynth = r.synthetic;
+    const cls = isSynth ? ' class="synth"' : '';
+    return `<tr>
+      <td${cls}>${rows.length-i}</td>
+      <td${cls} style="font-family:monospace;font-size:.72rem">${r.id}</td>
+      <td${cls}>${r.date}</td>
+      <td${cls} style="color:${isSynth?'#556':'#2ec4b6'};font-weight:${isSynth?400:700}">
+        ${fmt6(r.total_usd)}</td>
+      <td${cls}>${Number(r.compute_sec).toFixed(2)}s</td>
+      <td${cls}>${Number(r.storage_mb).toFixed(2)} MB</td>
+      <td${cls} style="color:${r.narratives>0?'#a78bfa':'#445'}">${r.narratives}</td>
+      <td${cls}>${fmtN(r.tokens)}</td>
+      <td><span style="display:inline-block;padding:1px 7px;border-radius:8px;
+        font-size:.68rem;font-weight:700;
+        background:${isSynth?'#f4a26111':'#2ec4b611'};
+        color:${isSynth?'#f4a261':'#2ec4b6'};
+        border:1px solid ${isSynth?'#f4a26133':'#2ec4b633'}">
+        ${isSynth?'&#9888; simulado':'&#10003; real'}</span></td>
+    </tr>`;
+  }).join('');
+}
+
+/* =============================================================
+   BOOT
+   ============================================================= */
+function render() {
+  drawLine();
+  drawDim();
+  drawSteps();
+  drawStorage();
+  renderHistTable();
+}
+
+render();
+window.addEventListener('resize', render);
+</script>
+</body>
+</html>
