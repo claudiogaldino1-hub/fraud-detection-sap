@@ -38,6 +38,16 @@ def run_pipeline(
     Runs the full pipeline and returns the alerts DataFrame.
     Set generate_narratives=False to skip Claude API calls (useful for unit tests).
     """
+    # ------------------------------------------------------------------
+    # Step 0: Security audit (blocks on CRITICAL findings)
+    # ------------------------------------------------------------------
+    from scripts.security_check import main as security_check
+    if not security_check(strict=False):
+        raise RuntimeError(
+            "Pipeline abortado: auditoria de segurança detectou credencial "
+            "exposta ou vulnerabilidade crítica. Verifique security/security_report.json."
+        )
+
     audit       = AuditLogger()
     registry    = ModelVersionRegistry()
     pipeline_id = str(uuid.uuid4())[:8]

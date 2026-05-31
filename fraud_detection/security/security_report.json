@@ -1,0 +1,37 @@
+{
+  "generated_at": "2026-05-31T15:04:59.516404+00:00",
+  "overall": "OK",
+  "counts": {
+    "CRITICAL": 0,
+    "FAIL": 0,
+    "WARN": 0,
+    "INFO": 2,
+    "OK": 0
+  },
+  "findings": [
+    {
+      "severity": "INFO",
+      "check": "claude_settings",
+      "message": ".claude/settings.json não encontrado — sem hooks configurados."
+    },
+    {
+      "severity": "INFO",
+      "check": "claude_code_version",
+      "message": "Claude Code não instalado ou não encontrado no PATH."
+    }
+  ],
+  "cve_reference": {
+    "CVE-2025-59536": {
+      "description": "Code injection via trust dialog bypass in Claude Code < 1.0.111",
+      "cvss": "8.8 HIGH",
+      "fix": "Update Claude Code to >= 1.0.111",
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2025-59536"
+    },
+    "CVE-2026-21852": {
+      "description": "API key exfiltration via malicious repository in Claude Code < 2.0.65",
+      "cvss": "7.5 HIGH",
+      "fix": "Update Claude Code to >= 2.0.65",
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-21852"
+    }
+  }
+}

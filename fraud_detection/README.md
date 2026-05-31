@@ -8,6 +8,20 @@
 
 ---
 
+> [!WARNING]
+> **Segurança — leia antes de clonar ou abrir em Claude Code**
+>
+> **CVE-2025-59536** (CVSS 8.8 · HIGH) — Claude Code < 1.0.111 permite injeção de código via bypass do diálogo de confiança ao abrir projetos.
+> **CVE-2026-21852** (CVSS 7.5 · HIGH) — Claude Code < 2.0.65 pode exfiltrar `ANTHROPIC_API_KEY` ao carregar repositórios maliciosos antes do diálogo de confiança.
+>
+> ✅ **Mitigation:** mantenha Claude Code atualizado para a versão mais recente.
+> Nunca armazene chaves reais em arquivos do projeto. Use `.env` (já no `.gitignore`).
+> Configure sua chave apenas via variável de ambiente: `set ANTHROPIC_API_KEY=sk-ant-...`
+>
+> Referências: [CVE-2025-59536](https://nvd.nist.gov/vuln/detail/CVE-2025-59536) · [CVE-2026-21852](https://nvd.nist.gov/vuln/detail/CVE-2026-21852)
+
+---
+
 ## O que é este projeto?
 
 Sistema enterprise de **detecção de fraude e anomalia financeira** no fluxo **Procure-to-Pay (P2P)** do SAP ERP. O P2P cobre todo o ciclo de uma compra — do cadastro do fornecedor até o pagamento da fatura — e é historicamente o processo com maior exposição a fraudes corporativas: fornecedores fantasma, duplicidade de pagamento, quebra de alçada e conluio entre compradores e fornecedores.

@@ -1,0 +1,71 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# SEGREDOS E CREDENCIAIS — nunca devem entrar no repositório
+# ─────────────────────────────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example          # .env.example é seguro — sem valores reais
+*.key
+*.pem
+*.pfx
+*.p12
+*.crt
+*.cer
+*secret*
+*credential*
+*password*
+*apikey*
+*api_key*
+*token*
+!governance/checksums.json   # exceção — não é segredo
+
+# Claude Code settings (pode conter hooks com chaves inline)
+.claude/settings.local.json
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DADOS GERADOS PELO PIPELINE — grandes demais ou regeneráveis
+# ─────────────────────────────────────────────────────────────────────────────
+data/raw/
+data/processed/
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MODELOS TREINADOS — binários pesados, versionados pelo governance/
+# ─────────────────────────────────────────────────────────────────────────────
+models/registry/
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ARTEFATOS DE GOVERNANÇA GERADOS EM RUNTIME
+# ─────────────────────────────────────────────────────────────────────────────
+governance/AUDIT_LOG.json
+governance/baseline_stats.json
+governance/cost_history.json
+governance/cost_report.json
+governance/model_versions.json
+governance/drift_reports/
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PYTHON
+# ─────────────────────────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SISTEMA OPERACIONAL
+# ─────────────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.swo
+*~
