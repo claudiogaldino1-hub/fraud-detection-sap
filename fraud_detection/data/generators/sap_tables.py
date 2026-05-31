@@ -411,7 +411,7 @@ class SAPDataGenerator:
         for name, df in self._tables.items():
             path = RAW_DIR / f"{name}.parquet"
             df.to_parquet(path, index=False)
-            print(f"  Saved {name}: {len(df):,} rows → {path}")
+            print(f"  Saved {name}: {len(df):,} rows -> {path}")
 
     @classmethod
     def load_all(cls) -> Dict[str, pd.DataFrame]:
