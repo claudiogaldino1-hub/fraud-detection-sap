@@ -49,9 +49,10 @@ def _build_features(bsak: pd.DataFrame, bkpf: pd.DataFrame, lfa1: pd.DataFrame) 
     df["AUGDT"] = pd.to_datetime(df["AUGDT"], errors="coerce")
     df["days_to_pay"] = (df["AUGDT"] - df["BUDAT"]).dt.days.fillna(0).clip(-365, 365)
 
-    vendor_stats = df.groupby("LIFNR")["DMBTR"].transform(["mean", "std"])
+    vendor_stats_mean = df.groupby("LIFNR")["DMBTR"].transform("mean")
+    vendor_stats_std = df.groupby("LIFNR")["DMBTR"].transform("std")
     df["amount_deviation_from_vendor_mean"] = (
-        (df["DMBTR"] - vendor_stats["mean"]) / (vendor_stats["std"] + 1)
+        (df["DMBTR"] - vendor_stats_mean) / (vendor_stats_std + 1)
     ).fillna(0)
 
     round_amounts = {5000, 10000, 25000, 50000, 100000, 250000, 500000}
