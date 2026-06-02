@@ -1,0 +1,126 @@
+{
+  "catalog_version": "1.0",
+  "generated_at": "2024-01-01T00:00:00Z",
+  "owner": "Data Governance Team",
+  "tables": {
+    "BKPF": {
+      "description": "Cabeçalho do Documento Contábil (FI)",
+      "layer": "FI",
+      "source_system": "SAP ECC / S/4HANA",
+      "fields": {
+        "MANDT": {"type": "str", "description": "Mandante", "sensitivity": "internal", "nullable": false},
+        "BUKRS": {"type": "str", "description": "Empresa", "sensitivity": "internal", "nullable": false},
+        "BELNR": {"type": "str", "description": "Número do Documento Contábil", "sensitivity": "internal", "nullable": false},
+        "GJAHR": {"type": "int", "description": "Exercício", "sensitivity": "internal", "nullable": false},
+        "BLART": {"type": "str", "description": "Tipo de Documento", "sensitivity": "internal", "nullable": false},
+        "BLDAT": {"type": "date", "description": "Data do Documento", "sensitivity": "internal", "nullable": false},
+        "BUDAT": {"type": "date", "description": "Data de Lançamento", "sensitivity": "internal", "nullable": false},
+        "USNAM": {"type": "str", "description": "Nome do Usuário que Lançou", "sensitivity": "confidential", "nullable": false},
+        "TCODE": {"type": "str", "description": "Código de Transação SAP", "sensitivity": "internal", "nullable": true},
+        "CPUTM": {"type": "str", "description": "Hora do Lançamento (HH:MM:SS)", "sensitivity": "confidential", "nullable": true},
+        "STBLG": {"type": "str", "description": "Nº do Documento de Estorno", "sensitivity": "internal", "nullable": true}
+      },
+      "fraud_relevance": ["AFTER_HOURS_PAYMENT", "MAVERICK_SPEND", "CANCELLED_NOT_REVERSED", "SOD_VENDOR_AND_PAYMENT"]
+    },
+    "BSEG": {
+      "description": "Segmento do Documento Contábil",
+      "layer": "FI",
+      "source_system": "SAP ECC / S/4HANA",
+      "fields": {
+        "LIFNR": {"type": "str", "description": "Conta do Fornecedor", "sensitivity": "confidential", "nullable": true},
+        "DMBTR": {"type": "decimal", "description": "Valor em Moeda Local", "sensitivity": "confidential", "nullable": false},
+        "WRBTR": {"type": "decimal", "description": "Valor em Moeda do Documento", "sensitivity": "confidential", "nullable": false},
+        "EBELN": {"type": "str", "description": "Nº do Pedido de Compra", "sensitivity": "internal", "nullable": true},
+        "AUGDT": {"type": "date", "description": "Data de Compensação", "sensitivity": "internal", "nullable": true}
+      },
+      "fraud_relevance": ["THREE_WAY_MISMATCH", "DUPLICATE_PAYMENT"]
+    },
+    "LFA1": {
+      "description": "Mestre de Fornecedores (Dados Gerais)",
+      "layer": "master",
+      "source_system": "SAP ECC / S/4HANA",
+      "fields": {
+        "LIFNR": {"type": "str", "description": "Código do Fornecedor", "sensitivity": "confidential", "nullable": false},
+        "NAME1": {"type": "str", "description": "Razão Social / Nome", "sensitivity": "confidential", "nullable": false},
+        "STCD1": {"type": "str", "description": "CNPJ / CPF (Tax Number 1)", "sensitivity": "restricted", "nullable": true},
+        "ERDAT": {"type": "date", "description": "Data de Criação do Cadastro", "sensitivity": "internal", "nullable": false},
+        "ERNAM": {"type": "str", "description": "Usuário que Criou o Cadastro", "sensitivity": "confidential", "nullable": false},
+        "SMTP_ADDR": {"type": "str", "description": "E-mail do Fornecedor", "sensitivity": "restricted", "nullable": true},
+        "STRAS": {"type": "str", "description": "Logradouro", "sensitivity": "confidential", "nullable": true}
+      },
+      "fraud_relevance": ["GHOST_VENDOR", "DUPLICATE_VENDOR", "FAST_VENDOR_PAYMENT"]
+    },
+    "LFB1": {
+      "description": "Mestre de Fornecedores (Dados da Empresa)",
+      "layer": "master",
+      "source_system": "SAP ECC / S/4HANA",
+      "fields": {
+        "BANKL": {"type": "str", "description": "Chave do Banco (ISPB/Código)", "sensitivity": "restricted", "nullable": true},
+        "BANKN": {"type": "str", "description": "Número da Conta Bancária", "sensitivity": "restricted", "nullable": true},
+        "BKDAT": {"type": "date", "description": "Data de Alteração dos Dados Bancários", "sensitivity": "internal", "nullable": true},
+        "BKNAM": {"type": "str", "description": "Usuário que Alterou os Dados Bancários", "sensitivity": "confidential", "nullable": true}
+      },
+      "fraud_relevance": ["BANK_CHANGE_BEFORE_PAYMENT", "VENDOR_EMPLOYEE_SHARED_BANK", "WRONG_BANK_ACCOUNT"]
+    },
+    "EKKO": {
+      "description": "Cabeçalho do Pedido de Compra",
+      "layer": "MM",
+      "source_system": "SAP ECC / S/4HANA",
+      "fields": {
+        "EBELN": {"type": "str", "description": "Número do Pedido de Compra", "sensitivity": "internal", "nullable": false},
+        "LIFNR": {"type": "str", "description": "Fornecedor", "sensitivity": "confidential", "nullable": false},
+        "ERNAM": {"type": "str", "description": "Criado por", "sensitivity": "confidential", "nullable": false},
+        "ERDAT": {"type": "date", "description": "Data de Criação", "sensitivity": "internal", "nullable": false},
+        "FRGRL": {"type": "str", "description": "Aprovador da Liberação", "sensitivity": "confidential", "nullable": true},
+        "FRGSX": {"type": "str", "description": "Estratégia de Aprovação", "sensitivity": "internal", "nullable": true},
+        "TOTAL_VALUE": {"type": "decimal", "description": "Valor Total do PO (calculado)", "sensitivity": "confidential", "nullable": false}
+      },
+      "fraud_relevance": ["DUPLICATE_PO", "PO_WITHOUT_CONTRACT", "THRESHOLD_SPLITTING", "SOD_PO_AND_RECEIPT"]
+    },
+    "BSAK": {
+      "description": "Índice Secundário FI — Fornecedores (Itens Compensados)",
+      "layer": "FI",
+      "source_system": "SAP ECC / S/4HANA",
+      "fields": {
+        "LIFNR": {"type": "str", "description": "Fornecedor", "sensitivity": "confidential", "nullable": false},
+        "DMBTR": {"type": "decimal", "description": "Valor em Moeda Local", "sensitivity": "confidential", "nullable": false},
+        "AUGDT": {"type": "date", "description": "Data de Compensação (Pagamento)", "sensitivity": "internal", "nullable": true},
+        "AUGBL": {"type": "str", "description": "Documento de Compensação", "sensitivity": "internal", "nullable": true},
+        "ZLSPR": {"type": "str", "description": "Bloqueio de Pagamento", "sensitivity": "internal", "nullable": true}
+      },
+      "fraud_relevance": [
+        "DUPLICATE_PAYMENT", "BELOW_THRESHOLD", "ROUND_PAYMENT", "EARLY_PAYMENT",
+        "WRONG_BANK_ACCOUNT", "PAYMENT_BURST", "SUSPICIOUS_RECURRENCE", "FAST_VENDOR_PAYMENT"
+      ]
+    }
+  },
+  "sensitivity_levels": {
+    "public":       "Informação pública, sem restrição",
+    "internal":     "Uso interno — não divulgar externamente",
+    "confidential": "Acesso restrito a perfis autorizados",
+    "restricted":   "Dados pessoais ou financeiros sensíveis — LGPD Artigo 5º"
+  },
+  "fraud_type_catalog": {
+    "GHOST_VENDOR":               "Fornecedor criado sem atividade legítima — recebe pagamentos sem entrega",
+    "DUPLICATE_VENDOR":           "Mesmo CNPJ cadastrado com nomes levemente diferentes",
+    "BANK_CHANGE_BEFORE_PAYMENT": "Dados bancários alterados próximo ao pagamento",
+    "VENDOR_EMPLOYEE_SHARED_BANK":"Fornecedor compartilha conta bancária com funcionário",
+    "FAST_VENDOR_PAYMENT":        "Fornecedor criado e pago em prazo muito curto (< 3 dias)",
+    "DUPLICATE_PO":               "Dois pedidos de compra com mesmo fornecedor/valor/data",
+    "PO_WITHOUT_CONTRACT":        "Compra de alto valor sem info record / contrato vinculado",
+    "THRESHOLD_SPLITTING":        "Pedidos fracionados para ficar abaixo do limite de aprovação",
+    "DUPLICATE_PAYMENT":          "Mesmo documento fiscal pago duas vezes",
+    "MAVERICK_SPEND":             "Pagamento de fatura sem pedido de compra vinculado",
+    "BELOW_THRESHOLD":            "Valor logo abaixo do limite de aprovação (Lei de Benford)",
+    "CANCELLED_NOT_REVERSED":     "Nota fiscal cancelada mas pagamento não estornado",
+    "THREE_WAY_MISMATCH":         "Divergência > 10% entre PO, recebimento e fatura",
+    "ROUND_PAYMENT":              "Pagamento em valor redondo sem justificativa",
+    "EARLY_PAYMENT":              "Pagamento anterior à data prevista / data do PO",
+    "WRONG_BANK_ACCOUNT":         "Pagamento para conta diferente do cadastro do fornecedor",
+    "PAYMENT_BURST":              "Volume anormal de pagamentos ao mesmo fornecedor em 48h",
+    "AFTER_HOURS_PAYMENT":        "Pagamento lançado fora do horário comercial",
+    "SUSPICIOUS_RECURRENCE":      "Mesmo valor pago mensalmente ao mesmo fornecedor",
+    "SOD_VENDOR_AND_PAYMENT":     "Mesmo usuário cadastrou fornecedor e aprovou pagamento",
+    "SOD_PO_AND_RECEIPT":         "Mesmo usuário criou PO e aprovou recebimento de mercadorias"
+  }
+}
