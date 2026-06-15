@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>SAP P2P Fraud Detection — Dashboards</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',Arial,sans-serif;background:#f5f7fa;color:#1a1a2e;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 20px}
+.header{text-align:center;margin-bottom:48px}
+.header h1{font-size:1.6rem;font-weight:700;color:#1a1a2e;margin-bottom:8px}
+.header p{font-size:.95rem;color:#555;max-width:520px;line-height:1.6}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px;width:100%;max-width:900px}
+.card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:28px 24px;text-decoration:none;color:inherit;transition:box-shadow .15s,transform .15s;display:flex;flex-direction:column;gap:10px}
+.card:hover{box-shadow:0 8px 24px rgba(0,0,0,.1);transform:translateY(-2px)}
+.card-icon{font-size:1.8rem;line-height:1}
+.card-title{font-size:1rem;font-weight:600;color:#1a1a2e}
+.card-desc{font-size:.85rem;color:#666;line-height:1.5}
+.badge{display:inline-block;font-size:.72rem;font-weight:600;padding:3px 9px;border-radius:20px;margin-top:4px}
+.badge-blue{background:#e0f0ff;color:#1565c0}
+.badge-green{background:#e6f4ea;color:#2e7d32}
+.badge-orange{background:#fff3e0;color:#e65100}
+.badge-purple{background:#f3e5f5;color:#6a1b9a}
+.footer{margin-top:48px;font-size:.8rem;color:#999;text-align:center;line-height:1.7}
+.footer a{color:#555;text-decoration:none}
+.footer a:hover{text-decoration:underline}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>SAP P2P Fraud Detection System</h1>
+  <p>Sistema enterprise de detecção de fraude financeira no fluxo Procure-to-Pay.<br>
+  Clique em um dashboard para abrir — nenhum servidor necessário.</p>
+</div>
+
+<div class="grid">
+
+  <a class="card" href="fraud_detection/reports/dashboard.html">
+    <div class="card-icon">📊</div>
+    <div class="card-title">Dashboard de Alertas</div>
+    <div class="card-desc">Top 20 alertas críticos, scores por modelo, histograma de risco e importância SHAP por feature.</div>
+    <span class="badge badge-blue">Para analistas de fraude</span>
+  </a>
+
+  <a class="card" href="fraud_detection/reports/executive_report.html">
+    <div class="card-icon">📋</div>
+    <div class="card-title">Relatório Executivo</div>
+    <div class="card-desc">Resumo do run em uma página: semáforo de risco, distribuição de alertas e custo total.</div>
+    <span class="badge badge-green">Para gestores e controllers</span>
+  </a>
+
+  <a class="card" href="fraud_detection/reports/audit_dashboard.html">
+    <div class="card-icon">🔒</div>
+    <div class="card-title">Painel de Auditoria</div>
+    <div class="card-desc">Integridade SHA-256 dos artefatos, timeline de runs com hash chain e audit log completo.</div>
+    <span class="badge badge-purple">Para auditores internos</span>
+  </a>
+
+  <a class="card" href="fraud_detection/reports/cost_dashboard.html">
+    <div class="card-icon">💸</div>
+    <div class="card-title">Monitor de Custos</div>
+    <div class="card-desc">Custo por run (compute + storage + Claude API), breakdown por etapa e projeção mensal.</div>
+    <span class="badge badge-orange">Para equipes de TI / FinOps</span>
+  </a>
+
+</div>
+
+<div class="footer">
+  <p>21 cenários de fraude · Isolation Forest + AutoEncoder + Grafo NetworkX · Narrativas via Claude API</p>
+  <p style="margin-top:6px">
+    <a href="https://github.com/claudiogaldino1-hub/fraud-detection-sap">GitHub</a>
+    &nbsp;·&nbsp;
+    <a href="fraud_detection/docs/TECHNICAL_DOCUMENTATION.md">Documentação Técnica</a>
+  </p>
+</div>
+
+</body>
+</html>
