@@ -178,14 +178,23 @@ class GraphAnalyzer:
                         evidence={"triangle": nodes},
                     ))
 
-    def _detect_isolated_vendors(self):
-        """Vendors with only one user interaction — ghost vendor signal."""
+    def _detect_isolated_vendors(self, min_interactions: int = 3):
+        """Vendors where a single user handles ALL interactions — ghost vendor / SoD signal.
+
+        Requires at least `min_interactions` user→vendor edges before flagging.
+        Without this guard, low-activity vendors (created but rarely used) are
+        trivially isolated and flood the graph_score with 1.0 for nearly all vendors,
+        inflating the ensemble score of legitimate transactions.
+        """
         for node in self.G.nodes:
             if self.G.nodes[node].get("type") == "vendor":
-                in_users = {
-                    u for u, v, _ in self.G.in_edges(node, data=True)
+                user_edges = [
+                    u for u, v, d in self.G.in_edges(node, data=True)
                     if self.G.nodes.get(u, {}).get("type") == "user"
-                }
+                ]
+                if len(user_edges) < min_interactions:
+                    continue
+                in_users = set(user_edges)
                 if len(in_users) == 1:
                     user = list(in_users)[0]
                     self.alerts.append(GraphAlert(
@@ -193,10 +202,12 @@ class GraphAnalyzer:
                         severity="LOW",
                         entities=[user, node],
                         description=(
-                            f"Fornecedor {node} possui apenas um usuário interagindo ({user}). "
+                            f"Fornecedor {node} possui {len(user_edges)} interações "
+                            f"registradas, todas originadas do mesmo usuário ({user}). "
                             f"Padrão consistente com fornecedor fantasma ou conluio."
                         ),
-                        evidence={"vendor": node, "sole_user": user},
+                        evidence={"vendor": node, "sole_user": user,
+                                  "interaction_count": len(user_edges)},
                     ))
 
     def _detect_high_degree_users(self):

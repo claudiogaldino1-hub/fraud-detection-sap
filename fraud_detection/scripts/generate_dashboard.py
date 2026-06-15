@@ -1,4 +1,213 @@
-<!DOCTYPE html>
+"""
+generate_dashboard.py
+Lê data/processed/alerts.parquet, computa valores SHAP reais a partir do
+modelo Isolation Forest salvo, e gera reports/dashboard.html 100% standalone.
+
+Uso:
+    cd fraud_detection
+    python scripts/generate_dashboard.py
+"""
+
+import json
+import sys
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+ALERTS_PATH  = ROOT / "data" / "processed" / "alerts.parquet"
+MODEL_REGISTRY = ROOT / "models" / "registry"
+OUT_PATH     = ROOT / "reports" / "dashboard.html"
+OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+# ── SHAP feature descriptions (SAP P2P context) ───────────────────────────
+FEATURE_DESC = {
+    "days_since_vendor_created": (
+        "Fornecedor criado recentemente",
+        "Dias entre o cadastro do fornecedor (LFA1.ERDAT) e o pagamento. "
+        "Valores baixos indicam fornecedores cadastrados e pagos em janela curta — "
+        "padrao classico de fornecedor fantasma ou cadastro fraudulento."
+    ),
+    "vendor_payment_count_30d": (
+        "Volume de pagamentos em 30 dias",
+        "Quantidade de documentos de pagamento (BSAK) para o mesmo fornecedor "
+        "nos ultimos 30 dias. Picos suspeitos podem indicar fracionamento de pedido "
+        "para fugir de alca de aprovacao ou conluio comprador-fornecedor."
+    ),
+    "DMBTR": (
+        "Valor do pagamento (BRL)",
+        "Valor contabil do documento de pagamento (BSEG.DMBTR em moeda local). "
+        "Valores logo abaixo de limites de aprovacao (ex: R$49.999) sinalizam "
+        'quebra de alca intencional. Valores redondos ativam o padrao "round amount".'
+    ),
+    "amount_deviation_from_vendor_mean": (
+        "Desvio do valor em relacao ao historico do fornecedor",
+        "Distancia padronizada entre o valor do pagamento e a media historica "
+        "do mesmo fornecedor (z-score simplificado). Desvios altos indicam "
+        "fatura atipica que pode representar superfaturamento ou pagamento duplicado."
+    ),
+    "WRBTR": (
+        "Valor na moeda do documento",
+        "Valor original do documento na moeda da transacao (BSEG.WRBTR). "
+        "Divergencias entre WRBTR e DMBTR apos conversao podem indicar "
+        "manipulacao de taxa de cambio ou fatura alterada."
+    ),
+    "hour_of_entry": (
+        "Hora de lancamento no sistema",
+        "Hora em que o documento foi registrado no SAP (BKPF.CPUTM). "
+        "Lancamentos fora do horario comercial (antes das 8h ou apos 18h, "
+        "fins de semana) sao indicadores de acesso nao autorizado ou pagamento "
+        "realizado sem supervisao."
+    ),
+    "po_invoice_ratio": (
+        "Relacao fatura vs. pedido de compra",
+        "Razao entre o valor da fatura (DMBTR) e o valor do pedido de compra "
+        "(WRBTR). Valores muito diferentes de 1.0 sinalizam falha no three-way match "
+        "(PO x Recebimento x Fatura), podendo indicar superfaturamento ou "
+        "maverick spend (compra sem PO vinculado)."
+    ),
+    "days_to_pay": (
+        "Prazo de pagamento",
+        "Dias entre a data de lancamento (BKPF.BUDAT) e a data de compensacao "
+        "(BSAK.AUGDT). Valores negativos ou proximos de zero indicam pagamento "
+        "antecipado sem justificativa — risco de cumplicidade com fornecedor."
+    ),
+    "is_round_amount": (
+        "Valor redondo (flag)",
+        "Flag binario (0/1) indicando se o valor corresponde a um montante "
+        "redondo tipico (ex: R$ 5.000, R$ 50.000, R$ 100.000). Pagamentos "
+        "redondos sem detalhamento de servicos sao anomalias classicas "
+        "apontadas pela Lei de Benford e auditorias forenses."
+    ),
+}
+
+# ── load alerts ────────────────────────────────────────────────────────────
+print(f"Lendo {ALERTS_PATH} ...")
+if not ALERTS_PATH.exists():
+    sys.exit(f"ERRO: {ALERTS_PATH} nao encontrado. Rode o pipeline primeiro.")
+
+df = pd.read_parquet(ALERTS_PATH)
+df["risk_tier"]  = df["risk_tier"].astype(str)
+df["FRAUD_TYPE"] = df["FRAUD_TYPE"].fillna("").astype(str)
+for col in ["BLDAT", "BUDAT", "AUGDT"]:
+    if col in df.columns:
+        df[col] = pd.to_datetime(df[col], errors="coerce").dt.strftime("%Y-%m-%d")
+
+# ── compute real SHAP values ───────────────────────────────────────────────
+print("Computando valores SHAP (Isolation Forest)...")
+shap_features = []
+try:
+    import shap as shap_lib
+    from data.generators import SAPDataGenerator
+    from models.isolation_forest import (NUMERIC_FEATURES,
+                                          IsolationForestDetector,
+                                          _build_features)
+
+    tables = SAPDataGenerator.load_all()
+    bsak, bkpf, lfa1 = tables["BSAK"], tables["BKPF"], tables["LFA1"]
+    feat_df = _build_features(bsak, bkpf, lfa1)
+    X = feat_df[NUMERIC_FEATURES].fillna(0).values
+
+    if_pkls = sorted(MODEL_REGISTRY.glob("isolation_forest*.pkl"))
+    if not if_pkls:
+        raise FileNotFoundError("Nenhum modelo isolation_forest*.pkl encontrado.")
+    det = IsolationForestDetector.load(if_pkls[-1].stem)
+
+    X_scaled = det.scaler.transform(X)
+    n_shap = min(20, len(X_scaled))
+    explainer = shap_lib.TreeExplainer(det.model)
+    sv = explainer.shap_values(X_scaled[:n_shap])
+    mean_abs = np.abs(sv).mean(axis=0)
+
+    for i, feat in enumerate(NUMERIC_FEATURES):
+        meta = FEATURE_DESC.get(feat, (feat, ""))
+        shap_features.append({
+            "feature":     feat,
+            "label":       meta[0],
+            "description": meta[1],
+            "importance":  round(float(mean_abs[i]), 5),
+        })
+    shap_features.sort(key=lambda x: x["importance"], reverse=True)
+    print(f"  SHAP calculado para {n_shap} registros, {len(shap_features)} features.")
+
+except Exception as e:
+    print(f"  Aviso: SHAP nao disponivel ({e}). Usando proxy de variancia.")
+    for feat, (label, desc) in FEATURE_DESC.items():
+        if feat in df.columns:
+            vals = df[feat].astype(float)
+            imp = round(float(vals.std()) / (abs(float(vals.mean())) + 1e-9), 5)
+            shap_features.append({"feature": feat, "label": label,
+                                   "description": desc, "importance": imp})
+    shap_features.sort(key=lambda x: x["importance"], reverse=True)
+
+# Keep top 10
+shap_features = shap_features[:10]
+
+# ── summary stats ──────────────────────────────────────────────────────────
+total       = int(len(df))
+tier_counts = {str(k): int(v) for k, v in df["risk_tier"].value_counts().items()}
+score_stats = {
+    "mean":       round(float(df["ensemble_score"].mean()), 4),
+    "max":        round(float(df["ensemble_score"].max()), 4),
+    "min":        round(float(df["ensemble_score"].min()), 4),
+    "if_mean":    round(float(df["if_score"].mean()), 4),
+    "ae_mean":    round(float(df["ae_score"].astype(float).mean()), 4),
+    "graph_mean": round(float(df["graph_score"].mean()), 4),
+}
+
+# Separate classified alerts from graph anomalies without a fraud label.
+# Empty FRAUD_TYPE comes from ISOLATED_VENDOR graph alerts (structural: fires for
+# vendors with a single user, regardless of injection). These are real graph signals
+# but not mapped to a named fraud scenario — show them in a dedicated KPI card
+# rather than mixing them into the fraud-type breakdown chart.
+_classified = df[df["FRAUD_TYPE"].str.strip() != ""]
+unclassified_count = int((df["FRAUD_TYPE"].str.strip() == "").sum())
+ft_series = _classified["FRAUD_TYPE"].value_counts()
+ft_labels = ft_series.index.tolist()
+ft_values = [int(v) for v in ft_series.values]
+
+counts, edges = np.histogram(df["ensemble_score"].astype(float), bins=20)
+hist_labels = [f"{edges[i]:.3f}" for i in range(len(edges) - 1)]
+hist_values = [int(v) for v in counts]
+
+top20 = (
+    df.nlargest(20, "ensemble_score")[
+        ["alert_id", "LIFNR", "BUKRS", "BELNR", "DMBTR", "AUGDT",
+         "FRAUD_TYPE", "if_score", "ae_score", "graph_score",
+         "ensemble_score", "risk_tier"]
+    ].copy()
+)
+top20["DMBTR"]          = top20["DMBTR"].apply(lambda x: f"R$ {x:,.2f}")
+top20["ensemble_score"] = top20["ensemble_score"].round(4)
+top20["if_score"]       = top20["if_score"].round(4)
+top20["ae_score"]       = top20["ae_score"].astype(float).round(4)
+top20["graph_score"]    = top20["graph_score"].round(4)
+top20_records = top20.to_dict("records")
+
+generated_at = pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S")
+
+payload = {
+    "total":              total,
+    "tier_counts":        tier_counts,
+    "score_stats":        score_stats,
+    "ft_labels":          ft_labels,
+    "ft_values":          ft_values,
+    "unclassified_count": unclassified_count,
+    "hist_labels":        hist_labels,
+    "hist_values":        hist_values,
+    "top20":              top20_records,
+    "shap_features":      shap_features,
+    "generated_at":       generated_at,
+}
+
+data_json = json.dumps(payload, ensure_ascii=True, default=str)
+print(f"  Payload JSON: {len(data_json):,} bytes")
+
+# ── HTML ───────────────────────────────────────────────────────────────────
+HTML = r"""<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8"/>
@@ -209,7 +418,7 @@ footer{text-align:center;padding:18px;color:#334;font-size:.73rem;
 /* ==============================================================
    DATA — embutido inline pelo generate_dashboard.py
    ============================================================== */
-const DATA = {"total": 463, "tier_counts": {"MEDIUM": 426, "HIGH": 37}, "score_stats": {"mean": 0.4747, "max": 0.9276, "min": 0.4001, "if_mean": 0.4041, "ae_mean": 0.0951, "graph_mean": 1.0}, "ft_labels": ["ROUND_PAYMENT", "EARLY_PAYMENT", "BELOW_THRESHOLD", "SUSPICIOUS_RECURRENCE", "WRONG_BANK_ACCOUNT", "DUPLICATE_PAYMENT", "PAYMENT_BURST", "FAST_VENDOR_PAYMENT"], "ft_values": [39, 37, 20, 12, 10, 10, 9, 6], "unclassified_count": 320, "hist_labels": ["0.400", "0.427", "0.453", "0.479", "0.506", "0.532", "0.558", "0.585", "0.611", "0.638", "0.664", "0.690", "0.717", "0.743", "0.769", "0.796", "0.822", "0.849", "0.875", "0.901"], "hist_values": [194, 100, 52, 26, 21, 13, 4, 3, 6, 1, 3, 6, 11, 8, 5, 3, 0, 1, 2, 4], "top20": [{"alert_id": "2fc1cc1c-3fb9-4cc0-b3e8-cec548523376", "LIFNR": "V000120", "BUKRS": "1000", "BELNR": "FI3152033759", "DMBTR": "R$ 5,000.00", "AUGDT": "2024-04-18", "FRAUD_TYPE": "ROUND_PAYMENT", "if_score": 0.8848, "ae_score": 0.9085, "graph_score": 1.0, "ensemble_score": 0.9276, "risk_tier": "HIGH"}, {"alert_id": "2ee36acb-946c-4660-b57b-94c20f4a68d0", "LIFNR": "V000239", "BUKRS": "1000", "BELNR": "FI5023467524", "DMBTR": "R$ 5,000.00", "AUGDT": "2024-10-07", "FRAUD_TYPE": "ROUND_PAYMENT", "if_score": 0.8717, "ae_score": 0.8946, "graph_score": 1.0, "ensemble_score": 0.9182, "risk_tier": "HIGH"}, {"alert_id": "95776540-b51c-49c4-83cc-f1dbba858965", "LIFNR": "V000117", "BUKRS": "3000", "BELNR": "FI2772303756", "DMBTR": "R$ 5,000.00", "AUGDT": "2024-01-16", "FRAUD_TYPE": "ROUND_PAYMENT", "if_score": 0.8892, "ae_score": 0.8586, "graph_score": 1.0, "ensemble_score": 0.9117, "risk_tier": "HIGH"}, {"alert_id": "b32594a1-d6e6-483b-b54e-fe561118ed90", "LIFNR": "V000208", "BUKRS": "3000", "BELNR": "FI1607361353", "DMBTR": "R$ 5,000.00", "AUGDT": "2024-07-08", "FRAUD_TYPE": "ROUND_PAYMENT", "if_score": 0.8392, "ae_score": 0.905, "graph_score": 1.0, "ensemble_score": 0.9105, "risk_tier": "HIGH"}, {"alert_id": "4467288b-f813-4d1c-94c1-fd2782c99c6f", "LIFNR": "V000051", "BUKRS": "2000", "BELNR": "FI4087737551", "DMBTR": "R$ 10,000.00", "AUGDT": "2023-03-23", "FRAUD_TYPE": "ROUND_PAYMENT", "if_score": 1.0, "ae_score": 0.7167, "graph_score": 1.0, "ensemble_score": 0.9008, "risk_tier": "HIGH"}, {"alert_id": "fffa7d97-0cc3-4e07-9dc7-fa7cc52d4a69", "LIFNR": "V000298", "BUKRS": "3000", "BELNR": "FI5773518071", "DMBTR": "R$ 1,119.79", "AUGDT": "2024-07-29", "FRAUD_TYPE": "", "if_score": 0.6493, "ae_score": 1.0, "graph_score": 1.0, "ensemble_score": 0.8773, "risk_tier": "HIGH"}, {"alert_id": "d5a5ac87-f69a-4ece-aa05-3d1d1d86d0f2", "LIFNR": "V000213", "BUKRS": "2000", "BELNR": "FI3335544933", "DMBTR": "R$ 1,139.75", "AUGDT": "2024-06-18", "FRAUD_TYPE": "", "if_score": 0.6925, "ae_score": 0.9043, "graph_score": 1.0, "ensemble_score": 0.8589, "risk_tier": "HIGH"}, {"alert_id": "c61bb2fa-b400-4e8a-a8dc-5ac59a75f72b", "LIFNR": "V000152", "BUKRS": "3000", "BELNR": "FI9649897863", "DMBTR": "R$ 10,000.00", "AUGDT": "2023-08-01", "FRAUD_TYPE": "ROUND_PAYMENT", "if_score": 0.8544, "ae_score": 0.6239, "graph_score": 1.0, "ensemble_score": 0.8174, "risk_tier": "HIGH"}, {"alert_id": "ceee8820-af9b-404f-b2a2-d4cf318eb46d", "LIFNR": "V000055", "BUKRS": "3000", "BELNR": "FI6724455488", "DMBTR": "R$ 10,000.00", "AUGDT": "2024-07-17", "FRAUD_TYPE": "ROUND_PAYMENT", "if_score": 0.8042, "ae_score": 0.63, "graph_score": 1.0, "ensemble_score": 0.802, "risk_tier": "HIGH"}, {"alert_id": "6235e18b-851b-4b92-b3b4-7ce50ead274e", "LIFNR": "V000065", "BUKRS": "2000", "BELNR": "FI1641589694", "DMBTR": "R$ 10,000.00", "AUGDT": "2023-07-31", "FRAUD_TYPE": "ROUND_PAYMENT", "if_score": 0.8193, "ae_score": 0.6071, "graph_score": 1.0, "ensemble_score": 0.7992, "risk_tier": "HIGH"}, {"alert_id": "defc23a8-22c4-4482-b41b-2a03d550f020", "LIFNR": "V000022", "BUKRS": "3000", "BELNR": "FI8964482040", "DMBTR": "R$ 10,000.00", "AUGDT": "2024-08-08", "FRAUD_TYPE": "ROUND_PAYMENT", "if_score": 0.7875, "ae_score": 0.6076, "graph_score": 1.0, "ensemble_score": 0.7883, "risk_tier": "HIGH"}, {"alert_id": "b849c59a-e820-42ee-8676-744040f8dd6b", "LIFNR": "V000067", "BUKRS": "2000", "BELNR": "FI2666273347", "DMBTR": "R$ 10,000.00", "AUGDT": "2023-03-09", "FRAUD_TYPE": "ROUND_PAYMENT", "if_score": 0.7767, "ae_score": 0.5953, "graph_score": 1.0, "ensemble_score": 0.7802, "risk_tier": "HIGH"}, {"alert_id": "42b1e15c-218f-4967-835a-875ae8a18b70", "LIFNR": "V000210", "BUKRS": "1000", "BELNR": "FI2340709176", "DMBTR": "R$ 10,000.00", "AUGDT": "2023-11-30", "FRAUD_TYPE": "ROUND_PAYMENT", "if_score": 0.7631, "ae_score": 0.603, "graph_score": 1.0, "ensemble_score": 0.7781, "risk_tier": "HIGH"}, {"alert_id": "a6b2ee3b-1d26-4707-91b9-e72748f505fe", "LIFNR": "V000147", "BUKRS": "2000", "BELNR": "FI5966768980", "DMBTR": "R$ 50,000.00", "AUGDT": "2024-09-25", "FRAUD_TYPE": "WRONG_BANK_ACCOUNT", "if_score": 0.7921, "ae_score": 0.571, "graph_score": 1.0, "ensemble_score": 0.7771, "risk_tier": "HIGH"}, {"alert_id": "567d96a9-5837-469d-9460-1a875d01e6f2", "LIFNR": "V000125", "BUKRS": "1000", "BELNR": "FI6971117000", "DMBTR": "R$ 50,000.00", "AUGDT": "2024-01-16", "FRAUD_TYPE": "ROUND_PAYMENT", "if_score": 0.776, "ae_score": 0.5786, "graph_score": 1.0, "ensemble_score": 0.7741, "risk_tier": "HIGH"}, {"alert_id": "c0e18d86-1513-47e9-9fba-17ce51d0a873", "LIFNR": "V000108", "BUKRS": "3000", "BELNR": "FI2733546707", "DMBTR": "R$ 25,000.00", "AUGDT": "2024-07-21", "FRAUD_TYPE": "ROUND_PAYMENT", "if_score": 0.7966, "ae_score": 0.5436, "graph_score": 1.0, "ensemble_score": 0.7691, "risk_tier": "HIGH"}, {"alert_id": "63e60415-0d59-4ce8-9e2d-b81bd2f8facc", "LIFNR": "V000292", "BUKRS": "2000", "BELNR": "FI1785473392", "DMBTR": "R$ 25,000.00", "AUGDT": "2023-02-10", "FRAUD_TYPE": "ROUND_PAYMENT", "if_score": 0.7864, "ae_score": 0.5415, "graph_score": 1.0, "ensemble_score": 0.7648, "risk_tier": "HIGH"}, {"alert_id": "33896c80-a266-46fb-8fc1-de48ecff78da", "LIFNR": "V000045", "BUKRS": "3000", "BELNR": "FI2418194554", "DMBTR": "R$ 25,000.00", "AUGDT": "2024-02-20", "FRAUD_TYPE": "ROUND_PAYMENT", "if_score": 0.765, "ae_score": 0.5548, "graph_score": 1.0, "ensemble_score": 0.7619, "risk_tier": "HIGH"}, {"alert_id": "bd839a99-260d-4578-9caf-e84627f2b6df", "LIFNR": "V000125", "BUKRS": "1000", "BELNR": "FI6917248994", "DMBTR": "R$ 100,000.00", "AUGDT": "2024-08-19", "FRAUD_TYPE": "ROUND_PAYMENT", "if_score": 0.7298, "ae_score": 0.5817, "graph_score": 1.0, "ensemble_score": 0.759, "risk_tier": "HIGH"}, {"alert_id": "1954e1bd-48d7-401d-a0bd-692466adede3", "LIFNR": "V000290", "BUKRS": "2000", "BELNR": "DUPFI0943933288", "DMBTR": "R$ 25,000.00", "AUGDT": "2023-06-06", "FRAUD_TYPE": "ROUND_PAYMENT", "if_score": 0.7499, "ae_score": 0.5454, "graph_score": 1.0, "ensemble_score": 0.7533, "risk_tier": "HIGH"}], "shap_features": [{"feature": "days_since_vendor_created", "label": "Fornecedor criado recentemente", "description": "Dias entre o cadastro do fornecedor (LFA1.ERDAT) e o pagamento. Valores baixos indicam fornecedores cadastrados e pagos em janela curta \u2014 padrao classico de fornecedor fantasma ou cadastro fraudulento.", "importance": 0.38059}, {"feature": "vendor_payment_count_30d", "label": "Volume de pagamentos em 30 dias", "description": "Quantidade de documentos de pagamento (BSAK) para o mesmo fornecedor nos ultimos 30 dias. Picos suspeitos podem indicar fracionamento de pedido para fugir de alca de aprovacao ou conluio comprador-fornecedor.", "importance": 0.2791}, {"feature": "DMBTR", "label": "Valor do pagamento (BRL)", "description": "Valor contabil do documento de pagamento (BSEG.DMBTR em moeda local). Valores logo abaixo de limites de aprovacao (ex: R$49.999) sinalizam quebra de alca intencional. Valores redondos ativam o padrao \"round amount\".", "importance": 0.22317}, {"feature": "amount_deviation_from_vendor_mean", "label": "Desvio do valor em relacao ao historico do fornecedor", "description": "Distancia padronizada entre o valor do pagamento e a media historica do mesmo fornecedor (z-score simplificado). Desvios altos indicam fatura atipica que pode representar superfaturamento ou pagamento duplicado.", "importance": 0.20811}, {"feature": "WRBTR", "label": "Valor na moeda do documento", "description": "Valor original do documento na moeda da transacao (BSEG.WRBTR). Divergencias entre WRBTR e DMBTR apos conversao podem indicar manipulacao de taxa de cambio ou fatura alterada.", "importance": 0.19301}, {"feature": "hour_of_entry", "label": "Hora de lancamento no sistema", "description": "Hora em que o documento foi registrado no SAP (BKPF.CPUTM). Lancamentos fora do horario comercial (antes das 8h ou apos 18h, fins de semana) sao indicadores de acesso nao autorizado ou pagamento realizado sem supervisao.", "importance": 0.16735}, {"feature": "po_invoice_ratio", "label": "Relacao fatura vs. pedido de compra", "description": "Razao entre o valor da fatura (DMBTR) e o valor do pedido de compra (WRBTR). Valores muito diferentes de 1.0 sinalizam falha no three-way match (PO x Recebimento x Fatura), podendo indicar superfaturamento ou maverick spend (compra sem PO vinculado).", "importance": 0.15439}, {"feature": "days_to_pay", "label": "Prazo de pagamento", "description": "Dias entre a data de lancamento (BKPF.BUDAT) e a data de compensacao (BSAK.AUGDT). Valores negativos ou proximos de zero indicam pagamento antecipado sem justificativa \u2014 risco de cumplicidade com fornecedor.", "importance": 0.13424}, {"feature": "is_round_amount", "label": "Valor redondo (flag)", "description": "Flag binario (0/1) indicando se o valor corresponde a um montante redondo tipico (ex: R$ 5.000, R$ 50.000, R$ 100.000). Pagamentos redondos sem detalhamento de servicos sao anomalias classicas apontadas pela Lei de Benford e auditorias forenses.", "importance": 0.07708}], "generated_at": "2026-06-15 20:04:58"};
+const DATA = /*INJECT_JSON*/;
 
 /* ==============================================================
    KPIs
@@ -434,3 +643,15 @@ window.addEventListener('resize', render);
 </script>
 </body>
 </html>
+"""
+
+html_final = HTML.replace("/*INJECT_JSON*/", data_json)
+OUT_PATH.write_text(html_final, encoding="utf-8")
+
+size_kb = OUT_PATH.stat().st_size / 1024
+print(f"\nDashboard salvo: {OUT_PATH}")
+print(f"Tamanho: {size_kb:.1f} KB")
+print(f"\nSessao SHAP adicionada:")
+for i, f in enumerate(shap_features, 1):
+    print(f"  #{i:2d}  {f['importance']:.5f}  {f['label']}")
+print(f"\nAbra com:  start {OUT_PATH}")
