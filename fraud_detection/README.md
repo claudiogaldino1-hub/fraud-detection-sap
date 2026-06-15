@@ -6,6 +6,8 @@
 ![SAP P2P](https://img.shields.io/badge/SAP-P2P%20Procure--to--Pay-0070f3?style=flat-square)
 ![Claude API](https://img.shields.io/badge/Claude%20API-claude--sonnet--4--5-6a4c93?style=flat-square)
 
+**[▶ Abrir Dashboards ao Vivo](https://claudiogaldino1-hub.github.io/fraud-detection-sap/)** — nenhuma instalação necessária.
+
 ---
 
 > [!WARNING]
@@ -212,6 +214,8 @@ docker-compose --profile test up tests
 ---
 
 ## Dashboards
+
+> **[▶ Abrir todos os dashboards](https://claudiogaldino1-hub.github.io/fraud-detection-sap/)** — página pública, nenhuma instalação necessária.
 
 Quatro painéis HTML gerados automaticamente pelo pipeline — abra qualquer um diretamente no browser, sem servidor:
 
