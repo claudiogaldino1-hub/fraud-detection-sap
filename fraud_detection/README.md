@@ -83,7 +83,56 @@ Dados SAP (sintéticos ou reais via RFC/HANA)
 
 **Tabelas SAP monitoradas (P2P):** `BKPF · BSEG · BSAK · BSID · LFA1 · LFB1 · T001 · T001W · EKKO · EKPO · EKKN · MARA · MARC`
 
-**21 cenários de fraude** injetados a ~2%: fornecedor fantasma, CNPJ duplicado, alteração de dados bancários, fracionamento de pedido, pagamento duplicado, maverick spend, three-way match, SoD, conluio e mais.
+**21 cenários de fraude** injetados a ~2% via `FraudInjector` (`data/generators/fraud_injector.py`).
+
+---
+
+## Cenários de Fraude Detectados
+
+O sistema cobre **21 cenários** organizados em 5 categorias. Cada cenário tem um código interno usado nas colunas `FRAUD_TYPE` dos dados de avaliação.
+
+### Cadastro de Fornecedor
+| Código | Descrição |
+|---|---|
+| `GHOST_VENDOR` | Fornecedor fantasma — criado sem histórico real, recebe pagamentos imediatamente |
+| `DUPLICATE_VENDOR` | CNPJ duplicado com nome levemente diferente no cadastro mestre |
+| `BANK_CHANGE_BEFORE_PAYMENT` | Dados bancários alterados 1–7 dias antes de um pagamento |
+| `VENDOR_EMPLOYEE_SHARED_BANK` | Conta bancária do fornecedor coincide com a de um funcionário interno |
+| `FAST_VENDOR_PAYMENT` | Fornecedor criado e pago em menos de 3 dias |
+
+### Pedido de Compra (PO)
+| Código | Descrição |
+|---|---|
+| `DUPLICATE_PO` | PO duplicado (mesmo fornecedor, valor e data) |
+| `PO_WITHOUT_CONTRACT` | PO acima de R$ 100k sem contrato vigente (INFNR em branco) |
+| `THRESHOLD_SPLITTING` | Compra fracionada em múltiplos POs abaixo de R$ 50k para fugir da alçada |
+
+### Fatura / Documento Financeiro
+| Código | Descrição |
+|---|---|
+| `DUPLICATE_PAYMENT` | Pagamento duplicado — mesmo fornecedor, valor e data |
+| `MAVERICK_SPEND` | Fatura sem PO vinculado (compra não autorizada) |
+| `BELOW_THRESHOLD` | Valor logo abaixo de limites de aprovação (R$ 10k / 50k / 100k / 500k) |
+| `CANCELLED_NOT_REVERSED` | NF cancelada (STBLG preenchido) com pagamento não estornado |
+| `THREE_WAY_MISMATCH` | Divergência > 10% entre PO, recebimento e fatura |
+
+### Comportamento de Pagamento
+| Código | Descrição |
+|---|---|
+| `ROUND_PAYMENT` | Valor exatamente redondo (R$ 5k, 10k, 50k, 100k…) |
+| `EARLY_PAYMENT` | Pagamento com data anterior ao primeiro documento do BKPF |
+| `WRONG_BANK_ACCOUNT` | Pagamento direcionado a conta diferente do cadastro do fornecedor |
+| `PAYMENT_BURST` | 10+ pagamentos ao mesmo fornecedor em menos de 48h |
+| `AFTER_HOURS_PAYMENT` | Processamento fora do expediente (antes 08h ou após 18h) |
+| `SUSPICIOUS_RECURRENCE` | Mesmo valor para o mesmo fornecedor, todo mês, por 12 meses |
+
+### Segregação de Funções (SoD) / Conluio
+| Código | Descrição |
+|---|---|
+| `SOD_VENDOR_AND_PAYMENT` | Mesmo usuário que cadastrou o fornecedor aprovou o pagamento |
+| `SOD_PO_AND_RECEIPT` | Mesmo usuário que criou o PO confirmou o recebimento da mercadoria |
+
+> Para o mapeamento completo (tabela SAP afetada, mecanismo de injeção e camada de detecção que cobre cada cenário), consulte o **Capítulo 9** da [Documentação Técnica](docs/TECHNICAL_DOCUMENTATION.md).
 
 ---
 

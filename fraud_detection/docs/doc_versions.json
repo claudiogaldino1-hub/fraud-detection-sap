@@ -15,5 +15,44 @@
       "api/"
     ],
     "file": "TECHNICAL_DOCUMENTATION_v1.0.md"
+  },
+  {
+    "version": "1.1",
+    "pipeline_id": "87cd1018",
+    "git_commit": "bd33acd02e4dd2ac52af02028ef0243bdc054560",
+    "git_short": "bd33acd",
+    "git_author": "Claudio Galdino <claudio.galdino1@gmail.com>",
+    "timestamp": "2026-05-31 14:47 UTC",
+    "changed_components": [
+      "governance",
+      "mlops",
+      "scripts"
+    ],
+    "file": "TECHNICAL_DOCUMENTATION_v1.1.md"
+  },
+  {
+    "version": "1.2",
+    "pipeline_id": "de9b92f4",
+    "git_commit": "e438e0d7b34cdf34ad6dd8a16c9b284de622c830",
+    "git_short": "e438e0d",
+    "git_author": "Claudio Galdino <claudio.galdino1@gmail.com>",
+    "timestamp": "2026-05-31 15:09 UTC",
+    "changed_components": [
+      "mlops",
+      "scripts"
+    ],
+    "file": "TECHNICAL_DOCUMENTATION_v1.2.md"
+  },
+  {
+    "version": "1.3",
+    "pipeline_id": "de9b92f4",
+    "git_commit": "pending",
+    "git_short": "pending",
+    "git_author": "Claudio Galdino <claudio.galdino1@gmail.com>",
+    "timestamp": "2026-06-15 UTC",
+    "changed_components": [
+      "docs"
+    ],
+    "file": "TECHNICAL_DOCUMENTATION_v1.3.md"
   }
 ]
