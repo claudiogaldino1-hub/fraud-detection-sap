@@ -41,7 +41,7 @@ O sistema foi projetado para rodar sobre dados reais do SAP (tabelas FI e MM) co
 
 ## Arquitetura
 
-O pipeline executa 14 etapas sequenciais, cobrindo desde a geração dos dados até a publicação dos relatórios:
+O pipeline executa **15 etapas** (Step 0 — auditoria de segurança até Step 14 — versionamento de docs), cobrindo desde a geração dos dados até a publicação dos relatórios:
 
 ```
 Dados SAP (sintéticos ou reais via RFC/HANA)
@@ -89,50 +89,35 @@ Dados SAP (sintéticos ou reais via RFC/HANA)
 
 ## Cenários de Fraude Detectados
 
-O sistema cobre **21 cenários** organizados em 5 categorias. Cada cenário tem um código interno usado nas colunas `FRAUD_TYPE` dos dados de avaliação.
+O sistema cobre **21 cenários** em 5 categorias. A tabela abaixo mapeia cada um ao código interno (`FRAUD_TYPE`), à tabela SAP afetada e à camada de detecção responsável.
 
-### Cadastro de Fornecedor
-| Código | Descrição |
-|---|---|
-| `GHOST_VENDOR` | Fornecedor fantasma — criado sem histórico real, recebe pagamentos imediatamente |
-| `DUPLICATE_VENDOR` | CNPJ duplicado com nome levemente diferente no cadastro mestre |
-| `BANK_CHANGE_BEFORE_PAYMENT` | Dados bancários alterados 1–7 dias antes de um pagamento |
-| `VENDOR_EMPLOYEE_SHARED_BANK` | Conta bancária do fornecedor coincide com a de um funcionário interno |
-| `FAST_VENDOR_PAYMENT` | Fornecedor criado e pago em menos de 3 dias |
+**Legenda de camadas:** `IF` = Isolation Forest · `AE` = AutoEncoder · `GR` = Grafo NetworkX · `FD` = Feature Direta (regra determinística)
 
-### Pedido de Compra (PO)
-| Código | Descrição |
-|---|---|
-| `DUPLICATE_PO` | PO duplicado (mesmo fornecedor, valor e data) |
-| `PO_WITHOUT_CONTRACT` | PO acima de R$ 100k sem contrato vigente (INFNR em branco) |
-| `THRESHOLD_SPLITTING` | Compra fracionada em múltiplos POs abaixo de R$ 50k para fugir da alçada |
+| # | Cenário | Código `FRAUD_TYPE` | Categoria | Tabela SAP principal | Camada |
+|---|---|---|---|---|---|
+| 1 | Fornecedor fantasma (criado sem histórico, pago imediatamente) | `GHOST_VENDOR` | Cadastro | `LFA1` | IF · GR |
+| 2 | CNPJ duplicado com nome levemente diferente | `DUPLICATE_VENDOR` | Cadastro | `LFA1` | FD |
+| 3 | Dados bancários alterados 1–7 dias antes do pagamento | `BANK_CHANGE_BEFORE_PAYMENT` | Cadastro | `LFB1` | FD · IF |
+| 4 | Conta bancária do fornecedor coincide com a de funcionário interno | `VENDOR_EMPLOYEE_SHARED_BANK` | Cadastro | `LFB1` | FD |
+| 5 | Fornecedor criado e pago em menos de 3 dias | `FAST_VENDOR_PAYMENT` | Cadastro | `BSAK` | FD · IF |
+| 6 | PO duplicado (mesmo fornecedor, valor e data) | `DUPLICATE_PO` | Pedido de Compra | `EKKO` | FD |
+| 7 | PO acima de R$ 100k sem contrato vigente (INFNR em branco) | `PO_WITHOUT_CONTRACT` | Pedido de Compra | `EKKO` / `EKPO` | FD · IF |
+| 8 | Compra fracionada em múltiplos POs abaixo de R$ 50k | `THRESHOLD_SPLITTING` | Pedido de Compra | `EKKO` | FD · AE |
+| 9 | Pagamento duplicado (mesmo LIFNR + DMBTR + BUDAT) | `DUPLICATE_PAYMENT` | Fatura | `BSAK` | FD |
+| 10 | Fatura sem PO vinculado — AWKEY/EBELN em branco | `MAVERICK_SPEND` | Fatura | `BKPF` | FD · IF |
+| 11 | Valor logo abaixo de limite de aprovação (R$ 10k / 50k / 100k / 500k) | `BELOW_THRESHOLD` | Fatura | `BSAK` | IF · AE |
+| 12 | NF cancelada (STBLG preenchido) com pagamento não estornado | `CANCELLED_NOT_REVERSED` | Fatura | `BKPF` | FD |
+| 13 | Divergência > 10% entre PO, recebimento e fatura (3-way match) | `THREE_WAY_MISMATCH` | Fatura | `BSEG` | FD · IF |
+| 14 | Valor redondo suspeito (R$ 5k, 10k, 25k, 50k, 100k…) | `ROUND_PAYMENT` | Pagamento | `BSAK` | IF · AE |
+| 15 | Pagamento com data anterior ao mínimo do BKPF | `EARLY_PAYMENT` | Pagamento | `BSAK` | FD · IF |
+| 16 | Pagamento direcionado a conta diferente do cadastro (AUGBL divergente) | `WRONG_BANK_ACCOUNT` | Pagamento | `BSAK` | FD |
+| 17 | 10+ pagamentos ao mesmo fornecedor em menos de 48h | `PAYMENT_BURST` | Pagamento | `BSAK` | IF · AE |
+| 18 | Processamento fora do expediente (antes 08h ou após 18h — CPUTM) | `AFTER_HOURS_PAYMENT` | Pagamento | `BKPF` | FD · IF |
+| 19 | Mesmo valor para o mesmo fornecedor todo mês por 12 meses | `SUSPICIOUS_RECURRENCE` | Pagamento | `BSAK` | AE · IF |
+| 20 | Mesmo usuário cadastrou o fornecedor e aprovou o pagamento | `SOD_VENDOR_AND_PAYMENT` | SoD / Conluio | `BKPF` | GR · FD |
+| 21 | Mesmo usuário criou o PO e aprovou o pagamento ao mesmo fornecedor | `SOD_PO_AND_RECEIPT` | SoD / Conluio | `EKKO` / `BKPF` | GR · FD |
 
-### Fatura / Documento Financeiro
-| Código | Descrição |
-|---|---|
-| `DUPLICATE_PAYMENT` | Pagamento duplicado — mesmo fornecedor, valor e data |
-| `MAVERICK_SPEND` | Fatura sem PO vinculado (compra não autorizada) |
-| `BELOW_THRESHOLD` | Valor logo abaixo de limites de aprovação (R$ 10k / 50k / 100k / 500k) |
-| `CANCELLED_NOT_REVERSED` | NF cancelada (STBLG preenchido) com pagamento não estornado |
-| `THREE_WAY_MISMATCH` | Divergência > 10% entre PO, recebimento e fatura |
-
-### Comportamento de Pagamento
-| Código | Descrição |
-|---|---|
-| `ROUND_PAYMENT` | Valor exatamente redondo (R$ 5k, 10k, 50k, 100k…) |
-| `EARLY_PAYMENT` | Pagamento com data anterior ao primeiro documento do BKPF |
-| `WRONG_BANK_ACCOUNT` | Pagamento direcionado a conta diferente do cadastro do fornecedor |
-| `PAYMENT_BURST` | 10+ pagamentos ao mesmo fornecedor em menos de 48h |
-| `AFTER_HOURS_PAYMENT` | Processamento fora do expediente (antes 08h ou após 18h) |
-| `SUSPICIOUS_RECURRENCE` | Mesmo valor para o mesmo fornecedor, todo mês, por 12 meses |
-
-### Segregação de Funções (SoD) / Conluio
-| Código | Descrição |
-|---|---|
-| `SOD_VENDOR_AND_PAYMENT` | Mesmo usuário que cadastrou o fornecedor aprovou o pagamento |
-| `SOD_PO_AND_RECEIPT` | Mesmo usuário que criou o PO confirmou o recebimento da mercadoria |
-
-> Para o mapeamento completo (tabela SAP afetada, mecanismo de injeção e camada de detecção que cobre cada cenário), consulte o **Capítulo 9** da [Documentação Técnica](docs/TECHNICAL_DOCUMENTATION.md).
+> Mapeamento detalhado com mecanismo de injeção campo a campo: **[Capítulo 9 — Catálogo Detalhado de Cenários de Fraude](docs/TECHNICAL_DOCUMENTATION.md#9-catálogo-detalhado-de-cenários-de-fraude)**.
 
 ---
 
@@ -173,7 +158,8 @@ python mlops/pipeline.py
 O pipeline executa 14 steps automaticamente e gera todos os relatórios:
 
 ```
-Step  1  Gerar dados SAP (13 tabelas, 2.000 POs, ~2.000 faturas)
+Step  0  Auditoria de segurança (bloqueia se detectar credencial exposta)
+Step  1  Gerar dados SAP (13 tabelas, 2.000 POs, ~2.500 faturas)
 Step  2  Injetar 21 cenários de fraude (~2% dos registros)
 Step  3  Treinar ensemble (Isolation Forest + AutoEncoder + NetworkX)
 Step  4  Inferência — gerar scores e risk tiers
