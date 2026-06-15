@@ -46,6 +46,18 @@
   {
     "version": "1.3",
     "pipeline_id": "de9b92f4",
+    "git_commit": "1a7132b",
+    "git_short": "1a7132b",
+    "git_author": "Claudio Galdino <claudio.galdino1@gmail.com>",
+    "timestamp": "2026-06-15 UTC",
+    "changed_components": [
+      "docs"
+    ],
+    "file": "TECHNICAL_DOCUMENTATION_v1.3.md"
+  },
+  {
+    "version": "1.4",
+    "pipeline_id": "de9b92f4",
     "git_commit": "pending",
     "git_short": "pending",
     "git_author": "Claudio Galdino <claudio.galdino1@gmail.com>",
@@ -53,6 +65,7 @@
     "changed_components": [
       "docs"
     ],
-    "file": "TECHNICAL_DOCUMENTATION_v1.3.md"
+    "file": "TECHNICAL_DOCUMENTATION_v1.4.md",
+    "review_notes": "Revisão completa de consistência doc vs. código: AutoEncoder (arquitetura, normalização), grafo (5 regras, graph_score binário), pipeline (15 steps), vendor_payment_count_30d (total histórico), po_invoice_ratio (campos BSAK)"
   }
 ]
